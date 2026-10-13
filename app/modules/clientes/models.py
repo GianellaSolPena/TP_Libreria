@@ -1,4 +1,9 @@
+from typing import TYPE_CHECKING, Optional
+
 from sqlmodel import Field, Relationship, SQLModel
+
+if TYPE_CHECKING:
+    from app.modules.ventas.models import Venta
 
 
 class Cliente(SQLModel, table=True):
@@ -8,9 +13,8 @@ class Cliente(SQLModel, table=True):
     nombre: str
     email: str = Field(unique=True)
 
-    perfil: "PerfilCliente | None" = Relationship(
-        back_populates="cliente", uselist=False
-    )
+    perfil: Optional["PerfilCliente"] = Relationship(back_populates="cliente")
+    ventas: list["Venta"] = Relationship(back_populates="cliente")
 
 
 class PerfilCliente(SQLModel, table=True):
@@ -21,4 +25,4 @@ class PerfilCliente(SQLModel, table=True):
     telefono: str | None = None
     direccion: str | None = None
 
-    cliente: Cliente | None = Relationship(back_populates="perfil")
+    cliente: Optional["Cliente"] = Relationship(back_populates="perfil")
