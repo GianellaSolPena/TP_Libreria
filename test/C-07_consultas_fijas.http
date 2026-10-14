@@ -15,6 +15,8 @@ GET {{host}}/libros/3
 # Esperado: 200; consola: 2 SELECT (venta + cliente, y renglones + libro)
 GET {{host}}/ventas/1
 
-### C-07d · Detalle de una venta con DOS renglones (usar el id que devolvió C-06; las altas fallidas también consumen ids)
+### C-07d · Detalle de una venta con DOS renglones (usar el id que devolvió C-06)
+# Si se corrió seed.sql limpio y C-04/C-05 no consumieron ids intermedios, el id es 2.
+# Si se corrieron altas fallidas antes, el id puede ser 3 o mayor. Ajustar según el JSON de C-06.
 # Esperado: 200; consola: la MISMA cantidad de SELECT que C-07c
-GET {{host}}/ventas/3
+GET {{host}}/ventas/2
