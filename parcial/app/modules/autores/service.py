@@ -1,63 +1,46 @@
-from fastapi import HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.core.errores import NoEncontrado, PaginaInexistente
+from app.core.paginacion import Pagina, calcular_offset, calcular_paginas
 from app.modules.autores.models import Autor
-from sqlalchemy.orm import joinedload
-
-from app.modules.libros.models import LibroAutor
 from app.modules.autores.schemas import AutorCreate, AutorUpdate
+from app.modules.autores.unit_of_work import AutoresUnitOfWork
+from app.modules.libros.models import LibroAutor
 
 
-async def _guardar(session: AsyncSession) -> None:
-    """Flush traduciendo el rechazo de la base a un error propio (RN-12)."""
-    try:
-        await session.flush()
-    except IntegrityError as exc:
-        await session.rollback()
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, "Los datos del autor violan una restricción"
-        ) from exc
+async def crear(uow: AutoresUnitOfWork, datos: AutorCreate) -> Autor:
+    async with uow:
+        return await uow.autores.add(Autor(**datos.model_dump()))
 
 
-async def crear(session: AsyncSession, datos: AutorCreate) -> Autor:
-    autor = Autor(**datos.model_dump())
-    session.add(autor)
-    await _guardar(session)
-    return autor
+async def obtener(uow: AutoresUnitOfWork, autor_id: int) -> Autor:
+    async with uow:
+        autor = await uow.autores.get_by_id(autor_id)
+        if autor is None:
+            raise NoEncontrado("Autor no encontrado")
+        return autor
 
 
-async def listar(session: AsyncSession, limit: int, offset: int) -> list[Autor]:
-    stmt = select(Autor).order_by(Autor.id).limit(limit).offset(offset)
-    return list((await session.execute(stmt)).scalars().all())
+async def actualizar(uow: AutoresUnitOfWork, autor_id: int, datos: AutorUpdate) -> Autor:
+    async with uow:
+        autor = await uow.autores.get_by_id(autor_id)
+        if autor is None:
+            raise NoEncontrado("Autor no encontrado")
+        return await uow.autores.update(autor, datos.model_dump(exclude_unset=True))
 
 
-async def obtener(session: AsyncSession, autor_id: int) -> Autor:
-    autor = await session.get(Autor, autor_id)
-    if autor is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Autor no encontrado")
-    return autor
-
-
-async def actualizar(session: AsyncSession, autor_id: int, datos: AutorUpdate) -> Autor:
-    autor = await obtener(session, autor_id)
-    for campo, valor in datos.model_dump(exclude_unset=True).items():
-        setattr(autor, campo, valor)
-    await _guardar(session)
-    return autor
+async def listar(uow: AutoresUnitOfWork, page: int, size: int) -> Pagina[Autor]:
+    async with uow:
+        total = await uow.autores.count()
+        pages = calcular_paginas(total, size)
+        if page > pages:
+            raise PaginaInexistente(page, pages)
+        items = await uow.autores.get_all(offset=calcular_offset(page, size), limit=size)
+        return Pagina[Autor](items=items, total=total, page=page, size=size, pages=pages)
 
 
 async def listar_libros(
-    session: AsyncSession, autor_id: int, limit: int, offset: int
+    uow: AutoresUnitOfWork, autor_id: int, limit: int, offset: int
 ) -> list[LibroAutor]:
-    await obtener(session, autor_id)  # 404 si no existe
-    stmt = (
-        select(LibroAutor)
-        .where(LibroAutor.autor_id == autor_id)
-        .options(joinedload(LibroAutor.libro))  # to-one -> joinedload
-        .order_by(LibroAutor.libro_id)
-        .limit(limit)
-        .offset(offset)
-    )
-    return list((await session.execute(stmt)).scalars().all())
+    async with uow:
+        if await uow.autores.get_by_id(autor_id) is None:
+            raise NoEncontrado("Autor no encontrado")
+        return await uow.autores.listar_autorias(autor_id, offset, limit)

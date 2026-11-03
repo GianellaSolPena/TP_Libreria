@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_session
+from app.core.database import get_session_tp as get_session
 from app.modules.libros import service
 from app.modules.libros.schemas import (
     LibroCreate,

@@ -1,13 +1,16 @@
-from pydantic import ConfigDict, model_validator
-from sqlmodel import Field, SQLModel
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-class EditorialCreate(SQLModel):
+class EditorialCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     nombre: str = Field(min_length=1)
     pais: str = Field(min_length=1)
 
 
-class EditorialUpdate(SQLModel):
+class EditorialUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     nombre: str | None = Field(default=None, min_length=1)
     pais: str | None = Field(default=None, min_length=1)
 
@@ -19,7 +22,7 @@ class EditorialUpdate(SQLModel):
         return self
 
 
-class EditorialRead(SQLModel):
+class EditorialRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int

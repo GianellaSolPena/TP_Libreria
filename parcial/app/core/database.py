@@ -23,9 +23,17 @@ def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSessi
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
+    """Entrega la sesión y la cierra. No confirma ni revierte: eso es del UnitOfWork."""
     session_factory: async_sessionmaker[AsyncSession] = request.app.state.session_factory
     async with session_factory() as session:
-        # TODO C-04: el commit pasa al Unit of Work
+        yield session
+
+
+# TRANSITORIO: se borra en C-07
+async def get_session_tp(request: Request) -> AsyncIterator[AsyncSession]:
+    """Comportamiento anterior (confirma al salir) para libros/clientes/ventas."""
+    session_factory: async_sessionmaker[AsyncSession] = request.app.state.session_factory
+    async with session_factory() as session:
         try:
             yield session
             await session.commit()

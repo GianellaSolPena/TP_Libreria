@@ -1,12 +1,15 @@
-from pydantic import ConfigDict, model_validator
-from sqlmodel import Field, SQLModel
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-class GeneroCreate(SQLModel):
+class GeneroCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     nombre: str = Field(min_length=1)
 
 
-class GeneroUpdate(SQLModel):
+class GeneroUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     nombre: str | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
@@ -17,7 +20,7 @@ class GeneroUpdate(SQLModel):
         return self
 
 
-class GeneroRead(SQLModel):
+class GeneroRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_session
+from app.core.database import get_session_tp as get_session
 from app.modules.clientes import service
 from app.modules.ventas import service as ventas_service
 from app.modules.ventas.schemas import VentaRead

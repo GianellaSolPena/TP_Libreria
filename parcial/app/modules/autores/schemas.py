@@ -1,16 +1,18 @@
 from decimal import Decimal
 
-from pydantic import AliasPath, ConfigDict, model_validator
-from pydantic import Field as PydanticField
-from sqlmodel import Field, SQLModel
+from pydantic import AliasPath, BaseModel, ConfigDict, Field, model_validator
 
 
-class AutorCreate(SQLModel):
+class AutorCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     nombre: str = Field(min_length=1)
     nacionalidad: str = Field(min_length=1)
 
 
-class AutorUpdate(SQLModel):
+class AutorUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     nombre: str | None = Field(default=None, min_length=1)
     nacionalidad: str | None = Field(default=None, min_length=1)
 
@@ -22,7 +24,7 @@ class AutorUpdate(SQLModel):
         return self
 
 
-class AutorRead(SQLModel):
+class AutorRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -30,14 +32,14 @@ class AutorRead(SQLModel):
     nacionalidad: str
 
 
-class AutorLibroRead(SQLModel):
+class AutorLibroRead(BaseModel):
     """Un libro del autor, con el rol y el orden de la autoría."""
 
     model_config = ConfigDict(from_attributes=True)
 
     libro_id: int
-    isbn: str = PydanticField(validation_alias=AliasPath("libro", "isbn"))
-    titulo: str = PydanticField(validation_alias=AliasPath("libro", "titulo"))
-    precio: Decimal = PydanticField(validation_alias=AliasPath("libro", "precio"))
+    isbn: str = Field(validation_alias=AliasPath("libro", "isbn"))
+    titulo: str = Field(validation_alias=AliasPath("libro", "titulo"))
+    precio: Decimal = Field(validation_alias=AliasPath("libro", "precio"))
     rol: str
     orden: int

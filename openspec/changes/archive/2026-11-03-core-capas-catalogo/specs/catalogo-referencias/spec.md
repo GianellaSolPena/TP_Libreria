@@ -1,0 +1,58 @@
+# Spec Delta
+
+## Purpose
+
+Gestiona las entidades de referencia del catálogo (editoriales, géneros y autores): alta, consulta, modificación parcial y listados paginados, según la tabla de endpoints del PDF (p. 16-17) y las rutas del TP conservadas (Q-10).
+
+## ADDED Requirements
+
+### Requirement: Rutas sin barra final
+Las rutas de editoriales, géneros y autores SHALL declararse sin barra final (`/editoriales`, `/generos`, `/autores`, `/{recurso}/{id}`).
+
+#### Scenario: Ruta del PDF
+- **WHEN** se pide `GET /editoriales`
+- **THEN** responde 200 directamente, sin redirección
+
+### Requirement: Alta de editoriales, géneros y autores
+`POST /editoriales` (`nombre`, `pais`), `POST /generos` (`nombre`) y `POST /autores` (`nombre`, `nacionalidad`) SHALL crear el recurso y responder 201 con su representación incluido el `id`. El contrato MUST rechazar campos no declarados y textos vacíos con 422.
+
+#### Scenario: Alta correcta
+- **WHEN** se envía `POST /generos` con `{"nombre": "Poesía"}` y no existe
+- **THEN** responde 201 con `{"id": <nuevo>, "nombre": "Poesía"}`
+
+#### Scenario: Nombre de género duplicado
+- **WHEN** se envía `POST /generos` con un nombre que ya existe
+- **THEN** responde 409 con «Ya existe un género con ese nombre»
+
+#### Scenario: Texto vacío
+- **WHEN** se envía `POST /autores` con `nombre` vacío
+- **THEN** responde 422
+
+### Requirement: Modificación parcial
+`PATCH /editoriales/{id}`, `PATCH /autores/{id}` y `PATCH /generos/{id}` SHALL modificar sólo los campos enviados y responder 200 con el recurso actualizado; un campo enviado como `null` o no declarado MUST responder 422; un id inexistente MUST responder 404; un nombre que choca con otro guardado MUST responder 409.
+
+#### Scenario: PATCH parcial
+- **WHEN** se envía `PATCH /editoriales/1` con `{"pais": "Chile"}`
+- **THEN** responde 200, cambia `pais` y `nombre` queda igual
+
+#### Scenario: PATCH con null
+- **WHEN** se envía `PATCH /autores/1` con `{"nombre": null}`
+- **THEN** responde 422 y no cambia nada
+
+#### Scenario: PATCH a un nombre existente
+- **WHEN** se envía `PATCH /editoriales/1` con el `nombre` de la editorial 2
+- **THEN** responde 409 y la editorial 1 queda igual
+
+### Requirement: Consulta por id
+`GET /editoriales/{id}`, `GET /generos/{id}` y `GET /autores/{id}` SHALL responder 200 con el recurso, o 404 si no existe.
+
+#### Scenario: Consulta existente
+- **WHEN** se pide `GET /autores/1` y existe
+- **THEN** responde 200 con `id`, `nombre` y `nacionalidad`
+
+### Requirement: Listados paginados
+`GET /editoriales`, `GET /generos` y `GET /autores` SHALL responder con el envoltorio de paginación, ordenados por `id`, aceptando `page` y `size`.
+
+#### Scenario: Listado de géneros
+- **WHEN** hay 3 géneros y se pide `GET /generos?size=2&page=2`
+- **THEN** responde 200 con 1 item, `total` 3, `page` 2, `size` 2 y `pages` 2

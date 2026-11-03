@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 from app.core.config import get_settings
 from app.core.database import create_engine, create_session_factory
+from app.modules import models as _modelos  # noqa: F401  (registra TODOS los mapeos, incl. usuarios)
 from app.modules.autores.router import router as autores_router
 from app.modules.clientes.router import router as clientes_router
 from app.modules.editoriales.router import router as editoriales_router

@@ -21,7 +21,7 @@
 C-01 copias (hecho)
 ├── C-02 config-lifespan-health (hecho)
 │   ├── C-03 modelos-migraciones (hecho) ─┐
-│   └── C-04 core-capas-catalogo ─┴── C-05 autenticacion
+│   └── C-04 core-capas-catalogo (hecho) ─┴── C-05 autenticacion
 │                                      └── C-06 autorizacion-roles-eventos
 │                                           └── C-07 libros-clientes-ventas (+C-03, C-04)
 │                                                └── C-08 lecturas-sin-n1
@@ -68,7 +68,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 - **Leer antes**: `04`; `11` §Riesgos de la migración; `05` §Sólo agregado; `10` (IN-01, Q-08, Q-17)
 
 ### [C-04] `core-capas-catalogo`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completo y archivado (2026-11-03)
 - **Scope**:
   - `app/core/repository.py`: `BaseRepository[T]` (recibe sesión y clase del modelo; `get_by_id`, `get_all`, `count`, `add`, `update`, `delete`; `flush`, nunca `commit`) y `SoftDeleteRepository[T]` (filtra dados de baja; `get_by_id_including_deleted`, `soft_delete`)
   - `app/core/unit_of_work.py`: commit al salir, rollback con excepción, no cierra la sesión; patrón de UoW por módulo y dependencia del router que lo construye
@@ -169,7 +169,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 | C-01 | snapshots-parcial-despliegue `[x]` | habilita todo | MEDIO | — |
 | C-02 | config-lifespan-health `[x]` | Ej.1 (6) | ALTO | C-01 |
 | C-03 | modelos-migraciones `[x]` | Ej.2 (10), Ej.7 | ALTO | C-02 |
-| C-04 | core-capas-catalogo | Ej.6, Ej.3 | MEDIO | C-02 |
+| C-04 | core-capas-catalogo `[x]` | Ej.6, Ej.3 | MEDIO | C-02 |
 | C-05 | autenticacion | Ej.4 (14), Ej.7 | CRITICO | C-03, C-04 |
 | C-06 | autorizacion-roles-eventos | Ej.5 (12), Ej.7 | CRITICO | C-05 |
 | C-07 | libros-clientes-ventas | Ej.6 (16), Ej.3, Ej.5, Ej.8 | ALTO | C-03, C-04, C-06 |
@@ -181,4 +181,4 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 
 Rutas de `knowledge-base/` abreviadas por número (`05` = `knowledge-base/05_reglas_de_negocio.md`).
 
-**Próximo change**: `C-04` (`core-capas-catalogo`).
+**Próximo change**: `C-05` (`autenticacion`).
