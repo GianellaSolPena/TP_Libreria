@@ -19,8 +19,8 @@
 
 ```
 C-01 copias (hecho)
-├── C-02 config-lifespan-health
-│   ├── C-03 modelos-migraciones ─┐
+├── C-02 config-lifespan-health (hecho)
+│   ├── C-03 modelos-migraciones (hecho) ─┐
 │   └── C-04 core-capas-catalogo ─┴── C-05 autenticacion
 │                                      └── C-06 autorizacion-roles-eventos
 │                                           └── C-07 libros-clientes-ventas (+C-03, C-04)
@@ -54,7 +54,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 - **Leer antes**: `08` §Variables de entorno y §Estructura; `11` (Config, Motor, Health); `10` (Q-04, IN-07)
 
 ### [C-03] `modelos-migraciones`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completo y archivado (2026-11-03)
 - **Scope**:
   - `usuarios/models.py`: `Usuario` (email UNIQUE, nombre, password_hash, activo, debe_cambiar_password; sin columna rol), `AsignacionRol` (CHECK rol IN ADMIN/VENDEDOR/CLIENTE, `desde`, `vence_en`/`revocada_en`/`otorgada_por` nulos [Q-17], único parcial `(usuario_id, rol) WHERE revocada_en IS NULL`), `IntentoAcceso` (índice `(email, ip, cuando)`), `EventoSeguridad` (actor texto, sin FK)
   - `libros/models.py`: `MovimientoStock` (`venta_id` nulo, `usuario_id` NOT NULL, CHECK `cantidad <> 0`); `Libro.borrado_en` + único parcial de `isbn` `WHERE borrado_en IS NULL` en lugar de `uq_libro_isbn`; siguen CHECK precio > 0 y stock >= 0
@@ -167,8 +167,8 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 | ID | Change | Ej. / pts | Governance | Depende de |
 |----|--------|-----------|------------|------------|
 | C-01 | snapshots-parcial-despliegue `[x]` | habilita todo | MEDIO | — |
-| C-02 | config-lifespan-health | Ej.1 (6) | ALTO | C-01 |
-| C-03 | modelos-migraciones | Ej.2 (10), Ej.7 | ALTO | C-02 |
+| C-02 | config-lifespan-health `[x]` | Ej.1 (6) | ALTO | C-01 |
+| C-03 | modelos-migraciones `[x]` | Ej.2 (10), Ej.7 | ALTO | C-02 |
 | C-04 | core-capas-catalogo | Ej.6, Ej.3 | MEDIO | C-02 |
 | C-05 | autenticacion | Ej.4 (14), Ej.7 | CRITICO | C-03, C-04 |
 | C-06 | autorizacion-roles-eventos | Ej.5 (12), Ej.7 | CRITICO | C-05 |
@@ -181,4 +181,4 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 
 Rutas de `knowledge-base/` abreviadas por número (`05` = `knowledge-base/05_reglas_de_negocio.md`).
 
-**Próximo change**: `C-02` (`config-lifespan-health`).
+**Próximo change**: `C-04` (`core-capas-catalogo`).
