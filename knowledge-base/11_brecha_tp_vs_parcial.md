@@ -16,10 +16,10 @@ El parcial se resuelve **agregando modificaciones sobre el TP existente**. Estad
 | Autorización | No existe (todo público) | `get_usuario_actual` (401), `requiere_rol` (403, roles en BD por petición), dos grupos de rutas en `main.py`, cambio obligatorio, dueño en `/ventas/{id}`, `/mis-ventas` | Nuevo `dependencies.py` + `main.py` |
 | `cliente` | `id, nombre, email UNIQUE`; `perfil` 1-1 | + `usuario_id` (nulo, UNIQUE) y `Cliente.usuario` (objeto) | Modelo + migración 0003 |
 | `libro` | `isbn UNIQUE`; `stock` editable por `PATCH` y en el alta (`stock`); sin borrado lógico | `borrado_en`; **índice único parcial** de `isbn`; `stock` sólo por movimientos; alta con `stock_inicial`; `PATCH` sólo título/precio y rechaza `stock` (422) | Modelo, esquemas (`extra=forbid`), repo `SoftDeleteRepository`, migración 0003 (hay que **eliminar el UNIQUE común** de `isbn`: ojo, el autogenerate puede no hacerlo con un índice parcial: leer y corregir a mano, con comentario) |
-| Endpoints de libros | `POST /libros/`, `GET /libros/`, `GET /libros/{id}`, `PATCH /libros/{id}` (con `stock`) | + `DELETE /libros/{id}` (204), `POST /libros/{id}/reponer`, `GET /libros/{id}/movimientos`, todos ADMIN salvo los GET de catálogo | Nuevos en C-12 |
+| Endpoints de libros | `POST /libros/`, `GET /libros/`, `GET /libros/{id}`, `PATCH /libros/{id}` (con `stock`) | + `DELETE /libros/{id}` (204), `POST /libros/{id}/reponer`, `GET /libros/{id}/movimientos`, todos ADMIN salvo los GET de catálogo | Nuevos en C-07 |
 | Endpoints que el PDF no lista | `GET /autores/`, `GET /{editoriales,generos,autores}/{id}`, `PATCH /generos/{id}`, `GET /clientes/` | No figuran en la tabla de referencia | Q-10 |
-| `requirements.txt` | `python-dotenv`, sin pydantic-settings/bcrypt/PyJWT | `pydantic-settings>=2.0`, `bcrypt>=4.0`, `PyJWT>=2.8`, `fastapi[standard]` (trae uvicorn) | C-03 / C-08 |
-| `alembic.ini` | `sqlalchemy.url =` vacío; `env.py` toma `DATABASE_URL` | `env.py` toma la URL de `Settings` (computada) | C-03 |
+| `requirements.txt` | `python-dotenv`, sin pydantic-settings/bcrypt/PyJWT | `pydantic-settings>=2.0`, `bcrypt>=4.0`, `PyJWT>=2.8`, `fastapi[standard]` (trae uvicorn) | C-02 / C-05 |
+| `alembic.ini` | `sqlalchemy.url =` vacío; `env.py` toma `DATABASE_URL` | `env.py` toma la URL de `Settings` (computada) | C-02 |
 | `movimiento_stock` | No existe | Tabla nueva + CHECK `cantidad <> 0` + índices en FKs (`libro_id`, `venta_id`, `usuario_id` NOT NULL) | Migración 0003 |
 | Sólo-agregado | No existe | Función + disparador (UPDATE/DELETE rechazados) | Migración 0004 **a mano**; `test/solo_agregado.sql` |
 | Ventas | `ventas.crear`: lee libros, crea renglones y total, **commit dentro del servicio**; sin descuento de stock ni movimientos; sin validar libro dado de baja | En un solo UoW: venta+renglones+descuento+movimiento por renglón; 409 si no alcanza o libro/cliente inexistente o dado de baja; aviso `BackgroundTasks` **sólo si confirmó**; `/mis-ventas`; detalle con acceso por dueño | Reescribir; punto único de escritura de stock |
@@ -31,7 +31,7 @@ El parcial se resuelve **agregando modificaciones sobre el TP existente**. Estad
 | Rutas | Routers con `"/"` final (`/libros/`) | Rutas del PDF sin barra | Normalizar (IN-05) |
 | Seed | `test/seed.sql` (psql) | `seed.py` en raíz: vacía tablas y carga datos del PDF; actor `SISTEMA` en `evento_seguridad` | Crear `seed.py`; mantener o retirar `seed.sql` |
 | Tests `.http` | `C-01..C-08` | `C-01..C-16` (+ `solo_agregado.sql` para C-14), con respuesta esperada en comentario | Rehacer/renumerar (IN-04) |
-| Tests pytest | No existen | **Strict TDD con pytest** en cada change (DD-01); PostgreSQL 16 descartable | Armar infraestructura de test (conftest, BD de test, fixtures) |
+| Tests pytest | No existen | No se piden: sólo los `.http` y `solo_agregado.sql` del PDF (DD-01) | Nada |
 | README | Puesta en marcha sin bcrypt/clave/seed.py | README con integrantes y pasos desde cero: venv, deps, `.env` + cómo generar la clave de firma, `alembic upgrade head`, `python seed.py`, arranque | Reescribir |
 | Despliegue | No existe | `despliegue/` con Dockerfile, .dockerignore, env.example, DEPLOY.md, evidencia/ | Ver `12_entregables_del_parcial.md` |
 
@@ -45,7 +45,7 @@ El parcial se resuelve **agregando modificaciones sobre el TP existente**. Estad
 - El autogenerate **no ve** funciones/disparadores: por eso la 0004 es a mano.
 
 ## Orden de cambios sugerido (dependencias)
-1. Infra de tests (pytest + PG16) y snapshot del TP para `despliegue/`.
+1. Snapshot del TP para `parcial/` y `despliegue/` (hecho en C-01).
 2. Config/lifespan/get_session/health (Ej. 1).
 3. Capas core: `repository.py`, `unit_of_work.py`, `paginacion.py`; migrar módulos de referencia (editoriales, géneros, autores) como patrón.
 4. Modelos nuevos + migraciones 0003/0004 (Ej. 2, 7).

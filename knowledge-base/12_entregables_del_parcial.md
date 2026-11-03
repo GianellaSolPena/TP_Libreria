@@ -38,7 +38,7 @@ Parcial_Cap1a6_<Grupo>.zip
     ├── DEPLOY.md
     └── evidencia/                salida de cada caso D
 ```
-**No** lleva: `.venv`, `__pycache__` (en ninguna carpeta), `.env`. Si incluye `.git`, se revisa el historial (una contraseña subida y borrada sigue ahí; se pediría cambiarla). Cuidado adicional por DD-01: `.pytest_cache`, `.env.test`, etc. fuera del zip.
+**No** lleva: `.venv`, `__pycache__` (en ninguna carpeta), `.env`. Si incluye `.git`, se revisa el historial (una contraseña subida y borrada sigue ahí; se pediría cambiarla).
 
 ### README.md de `parcial/` debe cubrir
 Integrantes; entorno virtual; dependencias; `.env` con **cómo generar la clave de firma**; `alembic upgrade head`; `python seed.py`; arranque del servidor.
@@ -91,7 +91,7 @@ Antes de cada `.http` se corre `python seed.py`. Cada petición lleva su respues
 | D-07 | Usuario del proceso | `docker exec libreria id` no es root |
 | D-08 | La venta registrada en D-03 | El aviso del comprobante aparece en `docker logs libreria` después de la línea de la respuesta |
 
-## Verificación de invariantes (para tests pytest, DD-01)
+## Verificación de invariantes (a comprobar con los casos `.http` y psql)
 - `stock == SUM(movimiento_stock.cantidad)` por libro, tras cada caso de venta (C-10, C-11, C-12).
 - Rollback total en venta fallida (ni venta, ni renglones, ni descuentos, ni movimientos).
 - `intento_acceso` persiste aunque la petición falle.

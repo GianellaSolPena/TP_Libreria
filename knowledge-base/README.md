@@ -13,7 +13,7 @@ Base de conocimiento generada (Mode A, ingest silencioso) a partir de `Parcial_C
 | [06_funcionalidades.md](06_funcionalidades.md) | Endpoints de referencia por épica y historias clave |
 | [07_flujos_principales.md](07_flujos_principales.md) | Registro, login, autorización, roles, venta, libro, despliegue |
 | [08_arquitectura_propuesta.md](08_arquitectura_propuesta.md) | Patrones, estructura de directorios obligatoria, seguridad, variables de entorno |
-| [09_decisiones_y_supuestos.md](09_decisiones_y_supuestos.md) | Decisiones (incl. strict TDD con pytest) y supuestos |
+| [09_decisiones_y_supuestos.md](09_decisiones_y_supuestos.md) | Decisiones (incl. pruebas sólo las del PDF, sin pytest) y supuestos |
 | [10_preguntas_abiertas.md](10_preguntas_abiertas.md) | Inconsistencias y preguntas priorizadas (grupo, VPS, etc.) |
 | [11_brecha_tp_vs_parcial.md](11_brecha_tp_vs_parcial.md) | Estado actual del código vs. requerido, por área |
 | [12_entregables_del_parcial.md](12_entregables_del_parcial.md) | Puntos por ejercicio, contenido del zip, Dockerfile, casos C y D |
@@ -29,4 +29,4 @@ Base de conocimiento generada (Mode A, ingest silencioso) a partir de `Parcial_C
 7. Antes de codificar -> [10](10_preguntas_abiertas.md)
 
 ## Resumen ejecutivo
-API FastAPI + SQLModel + PostgreSQL 16 (asyncpg) de una librería. El parcial agrega sobre el TP Cap 1-4 autenticación (bcrypt + JWT en cookie HttpOnly), autorización por roles vigentes en base, repositorios + Unit of Work, stock por movimientos con disparador de sólo agregado y borrado lógico de libros. Además se despliega, aparte, el TP Cap 1-4 congelado en Docker (base `python:3.12-alpine`) en el VPS de la cátedra. 100 puntos en 10 ejercicios; implementación con strict TDD (pytest) por decisión del grupo.
+API FastAPI + SQLModel + PostgreSQL 16 (asyncpg) de una librería. El parcial agrega sobre el TP Cap 1-4 autenticación (bcrypt + JWT en cookie HttpOnly), autorización por roles vigentes en base, repositorios + Unit of Work, stock por movimientos con disparador de sólo agregado y borrado lógico de libros. Además se despliega, aparte, el TP Cap 1-4 congelado en Docker (base `python:3.12-alpine`) en el VPS de la cátedra. 100 puntos en 10 ejercicios; pruebas: sólo las que pide el PDF (`.http` + `solo_agregado.sql`), sin pytest (DD-01).

@@ -2,12 +2,9 @@
 
 ## Decisiones documentadas
 
-### DD-01 — Strict TDD con pytest en cada change
-**Decisión**: todo change se implementa con strict TDD (RED/GREEN/TRIANGULATE/REFACTOR) usando **pytest**, además de los archivos `.http` y `test/solo_agregado.sql` que el PDF exige.
-**Contexto**: el PDF sólo pide casos `.http` con la respuesta esperada en comentario y el `.sql` del caso C-14; no pide tests automatizados. El usuario decidió agregarlos.
-**Alternativas consideradas**: sólo `.http` (lo mínimo del PDF).
-**Justificación**: los invariantes del parcial (rollback total de ventas, `stock == SUM(movimientos)`, disparador, 401/403, 429) se verifican mejor con tests repetibles.
-**Trade-offs aceptados**: hace falta un **PostgreSQL 16 descartable** (Docker Desktop) para correr los tests; SQLite no sirve (índices únicos parciales, disparadores, `timestamptz`). Añade dependencias de test (pytest, pytest-asyncio, httpx, etc.). Los `.http` siguen siendo entregable obligatorio. El zip no debe incluir `.venv` ni `__pycache__` ni `.env` (cuidar `.pytest_cache`).
+### DD-01 — Pruebas: sólo las que pide el PDF (sin pytest)
+**Decisión** (usuario, 2026-11-03; reemplaza la anterior "strict TDD con pytest"): no hay pytest, TDD ni base de test. Las pruebas son las que exige el PDF: archivos `.http` en `parcial/test/` (casos C-01..C-16, respuesta esperada en comentario, precedidos de `python seed.py`), `test/solo_agregado.sql` (caso C-14), la evidencia de C-14/C-15 en `parcial/evidencia/` y los casos D en `despliegue/evidencia/`.
+**Justificación**: hacer lo básico para cumplir las consignas sin infraestructura extra. Cada change se verifica con los casos `.http` / chequeos manuales que el PDF describe para esa parte.
 
 ### DD-02 — Modificar el TP existente, no reescribir
 **Decisión**: el parcial se resuelve sobre el código del TP Cap 1-4 ya entregado (`app/`, `migrations/`, `test/`). **Contexto**: el PDF dice "El grupo parte de su propio TP entregado". **Justificación**: reaprovechar modelos, migraciones 0001-0002, routers y casos C-01..C-08. Brecha en `11_brecha_tp_vs_parcial.md`.
@@ -28,7 +25,7 @@ Un solo rol de base; el mecanismo por permisos no se pide.
 Login tradicional con cookie; no se invalidan sesiones al cambiar la contraseña.
 
 ### DD-08 — `main.py` y `seed.py` en la raíz de `parcial/` (letra del PDF, p. 8)
-La tabla "Estructura obligatoria" lista `main.py` y `seed.py` sin prefijo, mientras todo lo demás lleva `app/...`. Por defecto se sigue la letra del PDF: `parcial/main.py` (arranque `uvicorn main:app`); `app/main.py` del TP se mueve en C-03. `despliegue/` no cambia (`app.main:app`). Q-03 queda para confirmar con la cátedra; si responde otra cosa, se revierte en C-03.
+La tabla "Estructura obligatoria" lista `main.py` y `seed.py` sin prefijo, mientras todo lo demás lleva `app/...`. Por defecto se sigue la letra del PDF: `parcial/main.py` (arranque `uvicorn main:app`); `app/main.py` del TP se mueve en C-02. `despliegue/` no cambia (`app.main:app`). Q-03 queda para confirmar con la cátedra; si responde otra cosa, se revierte en C-02.
 
 ### DD-09 — `intento_acceso` con un UoW propio (Ej. 7 + capas)
 La sesión propia del intento se crea desde la fábrica de `app.state` dentro de un UoW/repositorio dedicado que construye el router, así el servicio de login sigue sin tocar sesiones y la excepción queda en un solo lugar con su comentario de tres puntos.

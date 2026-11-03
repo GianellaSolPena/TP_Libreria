@@ -16,7 +16,7 @@
 | Servidor | uvicorn | el que instala `fastapi[standard]` | ASGI |
 | Contenedor | Docker | 20.10 | imagen del TP Cap 1-4, local y VPS |
 
-Estado actual de `requirements.txt` del TP: fastapi, sqlmodel, sqlalchemy[asyncio], asyncpg, alembic, python-dotenv, uvicorn. **Faltan** pydantic-settings, bcrypt, PyJWT y (decisión DD-01 del grupo) pytest y sus dependencias de test.
+Estado actual de `requirements.txt` del TP: fastapi, sqlmodel, sqlalchemy[asyncio], asyncpg, alembic, python-dotenv, uvicorn. **Faltan** pydantic-settings, bcrypt y PyJWT.
 
 ## Arquitectura general
 Dos proyectos distintos en una misma entrega:

@@ -77,5 +77,5 @@ Proyecto `despliegue/`: TP Cap 1-4 tal como se entregó + `Dockerfile`, `.docker
 
 La dirección de la base se arma en `Settings` con `@computed_field` a partir de las variables `POSTGRES_*` con driver `postgresql+asyncpg`. `env.example` incluye todas las variables y ningún secreto.
 
-## Testing (decisión del grupo, no del PDF)
-Strict TDD con pytest en cada change, **además** de los `.http` y `solo_agregado.sql` que exige el PDF. Requiere PostgreSQL 16 descartable (Docker Desktop). Ver `09_decisiones_y_supuestos.md` DD-01.
+## Pruebas
+Sólo las que pide el PDF: `.http` en `test/` (casos C con respuesta esperada en comentario) y `test/solo_agregado.sql`; sin pytest. Ver `09_decisiones_y_supuestos.md` DD-01.

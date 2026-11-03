@@ -7,6 +7,8 @@ Fecha: 2026-11-03. Autoridad: el PDF (24 p.). Método:
 
 Leyenda: ✅ completo y correcto · ⚠️ parcial, impreciso o sólo implícito · ❌ ausente o erróneo. "Antes" = estado previo a esta auditoría; "Después" de cada fila es ✅ salvo que se marque **(Q-xx)**: en ese caso queda una pregunta abierta en `10_preguntas_abiertas.md`.
 
+> **Nota (2026-11-03)**: los ids de change de la columna "Dónde" son los del plan anterior (C-01..C-22). `CHANGES.md` se reagrupó en C-01..C-12 (mapeo en su changelog); C19 e I04, que apuntaban a la infra pytest eliminada (antes C-02), pasan al change de modelos y migraciones (C-03 nuevo).
+
 ## Resultado del emparejamiento de tablas
 - **RN ↔ garante**: las 16 coincidían ya con el PDF (la reconstrucción previa era correcta). Sólo se reemplazó la nota de "reconstrucción" por "verificada".
 - **Endpoints**: las 33 filas (grupo, método, ruta, quién, códigos) coincidían en `06_funcionalidades.md`. Errores encontrados *fuera* de la tabla: `CHANGES.md` C-09 decía `GET /auth/logout` (el PDF dice **POST**); Q-11 y Q-12 preguntaban cosas que el PDF sí responde (`GET /ventas` = VENDEDOR, ADMIN; logout POST, "Cualquiera", 200; cambiar-password en grupo abierto, "Autenticado", 200/401/422).
@@ -62,7 +64,7 @@ Leyenda: ✅ completo y correcto · ⚠️ parcial, impreciso o sólo implícito
 | C16 | Módulo de cada entidad (AsignacionRol/IntentoAcceso/EventoSeguridad en usuarios; MovimientoStock y LibroAutor en libros; PerfilCliente en clientes; RenglonVenta en ventas) | 9 | ✅ | ⚠️ | Archivos destino explícitos en C-06 | 04, 08; C-06 |
 | C17 | Invariante `stock == SUM(movimientos)` verificada tras cada caso de venta | 6 | ✅ | ✅ | — | 04; C-12, C-14, C-16 |
 | C18 | Roles: sin columna `rol` en usuario; revocar escribe `revocada_en`; nunca se borra | 6 | ✅ | ✅ | — | 03, 04; C-11 |
-| C19 | Esquema sólo con Alembic, sin `create_all` | 10, 20 | ✅ | ⚠️ | conftest de C-02 con "nunca create_all" | C-02 |
+| C19 | Esquema sólo con Alembic, sin `create_all` | 10, 20 | ✅ | ⚠️ | Sin pytest (DD-01): queda en el change de modelos y migraciones | C-03 (nuevo) |
 | C20 | 0003 autogenerada, leída, con comentario; corregida a mano con comentario si hace falta | 10 | ✅ | ✅ | Riesgo de drops espurios por UNIQUE sin nombre en los modelos | 11; C-06 |
 | C21 | 0004 a mano con el disparador (autogenerate no ve funciones/disparadores) | 10 | ✅ | ✅ | — | C-07 |
 | C22 | `upgrade head` (vacía) → `downgrade base` → `upgrade head` | 10 | ✅ | ⚠️ | Ciclo completo explícito en C-07 | C-07 |
@@ -177,7 +179,7 @@ Leyenda: ✅ completo y correcto · ⚠️ parcial, impreciso o sólo implícito
 | I01 | Asincronía; bcrypt siempre fuera del bucle | 20 | ✅ | ✅ | — | 02 |
 | I02 | Credenciales: ninguna en código, default, `alembic.ini`, repo ni imagen | 20 | ✅ | ✅ | — | 02; C-03, C-22 |
 | I03 | Token sólo en cookie; nunca cuerpo ni `Authorization` | 20 | ✅ | ✅ | — | C-10 |
-| I04 | Esquema sólo con Alembic | 20 | ✅ | ⚠️ | C-02 | C-02 |
+| I04 | Esquema sólo con Alembic | 20 | ✅ | ⚠️ | C-02 | C-03 (nuevo) |
 | I05 | Ningún repositorio confirma; ningún servicio construye su UoW; el UoW no cierra la sesión | 20 | ✅ | ⚠️ | Premisa 8 | CHANGES |
 | I06 | Carga perezosa prohibida | 20 | ✅ | ✅ | — | C-15 |
 | I07 | SQL nunca por concatenación | 20 | ✅ | ✅ | — | C-15 |
