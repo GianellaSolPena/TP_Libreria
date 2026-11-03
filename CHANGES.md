@@ -9,7 +9,7 @@
 - **2026-11-03 — Auditoría contra el PDF** (`13_auditoria_vs_pdf.md`): correcciones de endpoints, modelo, RN y estructura incorporadas al scope de cada change (los ids de la auditoría son los anteriores; ver mapeo arriba).
 
 ## Premisas (no negociables)
-1. `parcial/` es la copia del TP entregado (`e337710`) y se evoluciona ahí; la raíz del repo no se toca. Comandos del parcial (alembic, uvicorn, seed) se corren desde `parcial/`.
+1. `parcial/` es la copia del TP entregado (`e337710`) y se evoluciona ahí; la raíz del repo solo tiene planificación (el TP original se quitó el 2026-11-03; sigue en `e337710`). Comandos del parcial (alembic, uvicorn, seed) se corren desde `parcial/`.
 2. `despliegue/` es la copia **congelada** del TP + Dockerfile (Ej. 9-10); no lleva nada del parcial.
 3. `main.py` y `seed.py` en la raíz de `parcial/` (DD-08; se revierte sólo si Q-03 dice otra cosa). `despliegue/` sigue con `app.main:app`.
 4. **Capas** (PDF p. 8-9): el router construye el UoW con una dependencia, llama al servicio y traduce errores; el servicio abre el UoW con `async with`, nunca recibe la sesión ni hace commit/rollback; los repositorios hacen `flush()`, nunca `commit()`; el UoW confirma/revierte al salir y no cierra la sesión. Única excepción: `intento_acceso` (DD-09).

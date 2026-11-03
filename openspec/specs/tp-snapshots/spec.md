@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Preservar el TP Cap 1-4 tal como se entregó (commit `e337710`) en dos copias de trabajo, `parcial/` y `despliegue/`, y poder verificar en cualquier momento su fidelidad al commit y que la raíz del repo sigue intacta.
+Preservar el TP Cap 1-4 tal como se entregó (commit `e337710`) en dos copias de trabajo, `parcial/` y `despliegue/`, y poder verificar en cualquier momento su fidelidad al commit.
 
 ## Requirements
 
@@ -43,12 +43,12 @@ Ningún snapshot SHALL contener `.git`, `.venv`, `__pycache__`, archivos `*.pyc`
 - **WHEN** existe `__pycache__/` o `.env` dentro de una copia
 - **THEN** la verificación falla e informa la ruta del artefacto
 
-### Requirement: Raíz del TP intacta
-Los archivos del TP en la raíz del repo (`app/`, `migrations/`, `test/`, `alembic.ini`, `requirements.txt`, `env.example`, `README.md`, `PLAN.md`) SHALL seguir idénticos a `e337710` después de crear los snapshots y en todo change posterior.
+### Requirement: Raíz sin código del TP
+La raíz del repo SHALL contener solo planificación (`knowledge-base/`, `openspec/`, `CHANGES.md`, `README.md`, `CLAUDE.md`, `AGENTS.md`, la consigna del parcial) y ningún `app/`, `migrations/`, `test/`, `alembic.ini`, `requirements.txt` ni `env.example`. El TP Cap 1-4 original se quitó de la raíz el 2026-11-03 (ya corregido, nota 10) y se recupera desde `e337710`.
 
-#### Scenario: Raíz sin cambios tras crear los snapshots
-- **WHEN** se verifica la raíz contra `e337710` para esas rutas
-- **THEN** no hay diferencias ni archivos agregados bajo `app/`, `migrations/` o `test/`
+#### Scenario: Raíz sin código
+- **WHEN** se listan los archivos versionados en la raíz del repo
+- **THEN** no aparece `app/`, `migrations/`, `test/`, `alembic.ini`, `requirements.txt` ni `env.example`
 
 ### Requirement: Respaldo del commit entregado
 El repo SHALL tener el tag `tp-cap1a4-entregado` apuntando a `e337710`.

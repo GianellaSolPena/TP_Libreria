@@ -6,7 +6,7 @@
 **Layout del repo**
 - `parcial/` — copia del TP Cap 1-4 (commit `e337710`) que se evoluciona de forma incremental. `main.py` y `seed.py` van en la raíz de `parcial/`; se corre con `uvicorn main:app`.
 - `despliegue/` — copia congelada del TP + Dockerfile (Ej. 9-10). Solo recibe lo de Docker/VPS.
-- Raíz del repo — TP original, **no se toca**.
+- Raíz del repo — solo planificación (`knowledge-base/`, `openspec/`, `CHANGES.md`, README, consigna). El TP original se quitó de la raíz el 2026-11-03 (ya corregido); queda en `e337710` / tag `tp-cap1a4-entregado`.
 - Copias creadas en C-01 con `git -c core.autocrlf=false archive e337710` (62 archivos c/u, verificadas idénticas al commit; tag local `tp-cap1a4-entregado`). `.gitattributes` (`parcial/** -text`, `despliegue/** -text`) evita que git altere sus finales de línea.
 - Entrega: `.zip` con `parcial/` + `despliegue/` (ver [knowledge-base/12](knowledge-base/12_entregables_del_parcial.md)).
 
@@ -107,7 +107,7 @@ Son contrato; romperlas es un defecto. Formato `NUNCA X → hacer Y`:
 6. NUNCA defaults para la clave de firma JWT ni la contraseña de la base, ni versionar `.env` → `Settings` (pydantic-settings) sin defaults; `env.example` sin secretos.
 7. Todos los handlers `async def`; bcrypt fuera del bucle (`asyncio.to_thread`); motor y fábrica de sesiones en el lifespan (`app.state`), nunca al importar.
 8. NUNCA autorizar con los roles del token → consultar `asignacion_rol` vigente en la base en cada petición; distinguir siempre 401 de 403.
-9. NUNCA modificar la raíz (TP original) ni la lógica de `despliegue/` → el parcial se hace en `parcial/`; `despliegue/` solo recibe Docker/VPS.
+9. NUNCA poner código en la raíz ni modificar la lógica de `despliegue/` → el parcial se hace en `parcial/`; `despliegue/` solo recibe Docker/VPS.
 10. Las pruebas son las que pide el PDF: `.http` en `parcial/test/` (casos C con respuesta esperada en comentario) y `solo_agregado.sql`; sin pytest.
 11. NUNCA commitear ni pushear sin pedido explícito → Conventional Commits en español.
 12. Ante duda, el PDF manda sobre KB, plan y skills; si el PDF no lo resuelve → registrarlo en `knowledge-base/10_preguntas_abiertas.md`, no inventar.
