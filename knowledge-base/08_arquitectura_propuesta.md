@@ -70,8 +70,11 @@ Proyecto `despliegue/`: TP Cap 1-4 tal como se entregó + `Dockerfile`, `.docker
 | `POSTGRES_DB` | nombre de la base | `libreria` | N |
 | `POSTGRES_HOST` | host | `localhost` | N |
 | `POSTGRES_PORT` | puerto | `5432` | N |
-| clave de firma del JWT | secreto principal; sin default (el nombre exacto no lo fija el PDF, ver Q-04) | generar con `secrets` | **Y** |
-| duración del token / costo bcrypt / `Secure` de la cookie / tamaño del pool | declarados en la config (nombres libres, ver Q-04) | 1800 s | N |
+| `JWT_SECRET_KEY` | clave de firma del JWT; secreto principal, sin default | generar con `secrets.token_urlsafe(32)` | **Y** |
+| `ACCESS_TOKEN_EXPIRE_SECONDS` | duración del token en segundos (también `Max-Age` de la cookie) | `1800` | N |
+| `BCRYPT_ROUNDS` | costo de bcrypt | `12` | N |
+| `COOKIE_SECURE` | `true` detrás de HTTPS | `false` | N |
+| `DB_POOL_SIZE` | tamaño del pool de conexiones | `5` | N |
 | `SQL_ECHO` | `true` para ver las consultas (casos C-15) | `false` | N |
 | `DATABASE_URL` | **sólo en `despliegue/`** (TP Cap 1-4): `postgresql+asyncpg://...` | — | **Y** |
 

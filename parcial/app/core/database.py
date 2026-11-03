@@ -1,14 +1,17 @@
 from collections.abc import AsyncIterator
 
 from fastapi import Request
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
-from app.core.config import DATABASE_URL, SQL_ECHO
+from app.core.config import Settings
 
 
-def create_engine() -> AsyncEngine:
-    return create_async_engine(DATABASE_URL, echo=SQL_ECHO)
+def create_engine(settings: Settings) -> AsyncEngine:
+    return create_async_engine(
+        settings.DATABASE_URL,
+        echo=settings.SQL_ECHO,
+        pool_size=settings.DB_POOL_SIZE,
+    )
 
 
 def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
@@ -19,14 +22,10 @@ def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSessi
     )
 
 
-async def run_select_one(engine: AsyncEngine) -> None:
-    async with engine.connect() as connection:
-        await connection.execute(text("SELECT 1"))
-
-
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
     session_factory: async_sessionmaker[AsyncSession] = request.app.state.session_factory
     async with session_factory() as session:
+        # TODO C-04: el commit pasa al Unit of Work
         try:
             yield session
             await session.commit()

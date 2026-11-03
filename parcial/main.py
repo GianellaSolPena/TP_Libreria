@@ -1,9 +1,12 @@
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import bcrypt
 from fastapi import FastAPI
 
+from app.core.config import get_settings
 from app.core.database import create_engine, create_session_factory
 from app.modules.autores.router import router as autores_router
 from app.modules.clientes.router import router as clientes_router
@@ -16,9 +19,15 @@ from app.modules.ventas.router import router as ventas_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    engine = create_engine()
+    settings = get_settings()
+    engine = create_engine(settings)
+    app.state.settings = settings
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
+    # Hash ficticio (costo = BCRYPT_ROUNDS) para igualar tiempos en el login (C-05).
+    app.state.hash_ficticio = await asyncio.to_thread(
+        bcrypt.hashpw, b"hash-ficticio", bcrypt.gensalt(rounds=settings.BCRYPT_ROUNDS)
+    )
     try:
         yield
     finally:

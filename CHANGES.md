@@ -42,7 +42,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 - **Leer antes**: `09` (DD-03), `12` §Contenido del .zip
 
 ### [C-02] `config-lifespan-health`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completo (2026-11-03)
 - **Scope**:
   - `app/core/config.py` con `pydantic-settings`: `POSTGRES_USER/PASSWORD/DB/HOST/PORT` + URL `postgresql+asyncpg` con `@computed_field`, `SQL_ECHO`, pool, duración del token, costo bcrypt, cookie `Secure` (nombres: Q-04). Clave de firma y `POSTGRES_PASSWORD` **sin default** (si faltan no arranca; nada de clave generada al arrancar); `.env` no versionado
   - `app/core/database.py`: funciones que crean motor (`echo=SQL_ECHO`, pool) y fábrica (`expire_on_commit=False`), no llamadas al importar; `get_session` toma la fábrica de `app.state`, una sesión por petición, la cierra

@@ -29,8 +29,16 @@ géneros, más clientes y ventas.
 
    | Variable | Descripción |
    |---|---|
-   | `DATABASE_URL` | Cadena de conexión, con el formato `postgresql+asyncpg://usuario:password@localhost:5432/libreria` |
+   | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Credenciales y base de PostgreSQL (sin valor por defecto) |
+   | `POSTGRES_HOST`, `POSTGRES_PORT` | Dirección de la base. Por defecto `localhost` y `5432` |
    | `SQL_ECHO` | `true` para ver en la consola las consultas SQL (necesario para el caso C-07). Por defecto `false` |
+   | `DB_POOL_SIZE` | Tamaño del pool de conexiones. Por defecto `5` |
+   | `JWT_SECRET_KEY` | Clave de firma del token (sin valor por defecto). Generala con `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+   | `ACCESS_TOKEN_EXPIRE_SECONDS` | Duración del token en segundos. Por defecto `1800` |
+   | `BCRYPT_ROUNDS` | Costo de bcrypt. Por defecto `12` |
+   | `COOKIE_SECURE` | `true` cuando se sirve por HTTPS. Por defecto `false` |
+
+   Si falta `POSTGRES_PASSWORD` o `JWT_SECRET_KEY`, el servidor no arranca y el error nombra la variable.
 
 3. **Crear las tablas** con Alembic (el proyecto no usa `create_all`):
 
@@ -51,7 +59,7 @@ géneros, más clientes y ventas.
 5. **Levantar el servidor**
 
    ```bash
-   uvicorn app.main:app --reload
+   uvicorn main:app --reload
    ```
 
    - Documentación interactiva: <http://localhost:8000/docs>
@@ -60,11 +68,11 @@ géneros, más clientes y ventas.
 ## Estructura
 
 ```
+main.py                  # App, lifespan (motor y fábrica de sesiones) y registro de routers
 app/
-├── main.py              # App, lifespan (motor y fábrica de sesiones) y registro de routers
-├── core/                # config.py (lee .env) y database.py (motor, sesión, get_session)
+├── core/                # config.py (Settings, lee .env) y database.py (motor, sesión, get_session)
 └── modules/
-    ├── health/
+    ├── health/          # sólo router.py
     ├── editoriales/
     ├── generos/
     ├── autores/
