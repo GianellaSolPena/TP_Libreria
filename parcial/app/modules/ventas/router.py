@@ -2,10 +2,11 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session_tp as get_session
+from app.core.dependencies import personal
 from app.modules.ventas import service
 from app.modules.ventas.schemas import VentaCreate, VentaDetalleRead, VentaRead
 
-router = APIRouter(prefix="/ventas", tags=["ventas"])
+router = APIRouter(prefix="/ventas", tags=["ventas"], dependencies=[Depends(personal)])
 
 
 @router.post("/", response_model=VentaDetalleRead, status_code=status.HTTP_201_CREATED)

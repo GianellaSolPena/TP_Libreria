@@ -1,6 +1,14 @@
-from typing import Annotated
+from datetime import UTC, datetime
+from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import (
+    AfterValidator,
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+)
 
 from app.core.security import PasswordBcrypt
 from app.modules.usuarios.models import Rol
@@ -65,3 +73,52 @@ class YoOut(BaseModel):
 
 class MensajeOut(BaseModel):
     mensaje: str
+
+
+# Un CLIENTE nace por /auth/registro con su ficha (RN-02): el alta de personal solo admite estos dos.
+RolPersonal = Literal[Rol.VENDEDOR, Rol.ADMIN]
+
+
+def _exigir_futuro(valor: datetime | None) -> datetime | None:
+    if valor is not None and valor <= datetime.now(UTC):
+        raise ValueError("vence_en debe ser una fecha futura")
+    return valor
+
+
+class PersonalIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: Email
+    nombre: str = Field(min_length=1, max_length=120)
+    password: PasswordBcrypt
+    rol: RolPersonal
+
+
+class AsignarRolIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    rol: Rol
+    # AwareDatetime rechaza la fecha sin zona (422); timestamptz la normaliza a UTC.
+    vence_en: Annotated[AwareDatetime | None, AfterValidator(_exigir_futuro)] = None
+
+
+class AsignacionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    usuario_id: int
+    rol: Rol
+    desde: datetime
+    vence_en: datetime | None
+    revocada_en: datetime | None
+    otorgada_por: int | None
+    vigente: bool
+
+
+class EventoRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    cuando: datetime
+    actor: str
+    accion: str

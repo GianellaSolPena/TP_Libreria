@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session_tp as get_session
+from app.core.dependencies import personal
 from app.modules.clientes import service
 from app.modules.ventas import service as ventas_service
 from app.modules.ventas.schemas import VentaRead
@@ -13,7 +14,7 @@ from app.modules.clientes.schemas import (
     PerfilRead,
 )
 
-router = APIRouter(prefix="/clientes", tags=["clientes"])
+router = APIRouter(prefix="/clientes", tags=["clientes"], dependencies=[Depends(personal)])
 
 
 @router.post("/", response_model=ClienteRead, status_code=status.HTTP_201_CREATED)

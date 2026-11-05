@@ -32,7 +32,7 @@ PDF: `/libros`, `/clientes`, `/ventas`... (sin barra). TP: routers con `"/"` (`/
 | Q-02 | Alta | **Datos de acceso al VPS** (host/IP, usuario, método de acceso), **puerto asignado** (`-p <puerto>:8000`), **URL pública**, y **base de datos que provee la cátedra** (host, usuario, contraseña, nombre; si es `host.docker.internal` u otra dirección) | Ej. 9-10 | Cátedra |
 | Q-03 | Alta | Ubicación de `main.py`: el PDF lista `main.py` y `seed.py` en la raíz de la estructura y `app/core/*` y `app/modules/*` con prefijo `app/`; el TP tiene `app/main.py` y el Dockerfile usa `app.main:app`. **RESUELTA (2026-11-03, el usuario): `parcial/main.py` en la raíz (DD-08)** | Ej. 1, 6 | Grupo (y confirmar con cátedra) |
 | Q-04 | — | ~~Nombres exactos de las variables de `Settings`~~ **Resuelto en C-02**: `JWT_SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_SECONDS` (1800), `BCRYPT_ROUNDS` (12), `COOKIE_SECURE` (false), `DB_POOL_SIZE` (5) | — | — |
-| Q-05 | Media | Contraseñas de los usuarios del seed (el PDF dice que son "de mentira") y contraseña provisoria del alta de personal | Casos C (diferida a C-09, decisión 2026-11-04) | Grupo |
+| Q-05 | Media | Contraseñas de los usuarios del seed (el PDF dice que son "de mentira") y contraseña provisoria del alta de personal | Casos C (diferida a C-09, decisión 2026-11-04). **Avance (C-06, QA-01)**: la contraseña provisoria del alta de personal la envía el ADMIN en el cuerpo de `POST /usuarios` (≤ 72 bytes, se hashea antes del UoW); siguen abiertas las contraseñas del seed | Grupo |
 | Q-06 | Media | Integrantes (nombres y apellidos) para el `README.md`. El README del TP lista: Agustina Fontagnol, Martina Suarez y Gianella Peña; confirmar que sigue igual | Entrega | Grupo |
 | Q-07 | Media | Contenido del `motivo` de `movimiento_stock` (texto libre vs valores fijos): el PDF cita "Stock inicial"; hay que inventar "Reposición" y "Venta" | Ej. 6 | Grupo |
 | Q-08 | Media | ~~¿`movimiento_stock.usuario_id` obligatorio?~~ **Resuelto por el PDF**: no lleva "(nulo)" y la Fig. 1 dibuja `MovimientoStock 0..* -> 1 Usuario` ("actor"): NOT NULL. **Sigue abierto**: qué usuario va en los "Stock inicial" del seed (propuesta: `admin@example.com`; las salidas de la venta 1, `vendedor@example.com`) y si hace falta backfill sobre bases ya pobladas. **Propuesta C-03 (design D-08)**: la 0003 no backfillea, porque `usuario_id` es NOT NULL y al migrar no existe ningún usuario; el PDF parte de base vacía + `seed.py` | seed | Grupo |
@@ -48,3 +48,13 @@ PDF: `/libros`, `/clientes`, `/ventas`... (sin barra). TP: routers con `"/"` (`/
 | Q-19 | Baja | `GET /libros/{id}` / `PATCH /libros/{id}` / `DELETE /libros/{id}` sobre un libro ya dado de baja: el PDF sólo dice que deja de aparecer en el catálogo. Propuesta: 404 en las tres | Ej. 3, 6 | Grupo |
 | Q-20 | — | ~~¿El rechazo 429 se anota en `intento_acceso`?~~ **Resuelta (2026-11-04, el usuario; C-05 design D7/D12)**: **no** se anota; el 429 no extiende el bloqueo y C-05 encuentra exactamente los cinco fallos | — | — |
 | Q-16 | Baja | [DISCOVERY] `problem`, `system_type`, `domain`, `scale`, `stack`, `needs_infra`: se infirieron con alta confianza (documento muy explícito); `scale` = `public_multi_user` (clientes se auto-registran) | — | — |
+
+## Decisiones de C-06 (autorizacion-roles-eventos) — resueltas 2026-11-05 (el usuario aceptó las recomendaciones)
+- **QA-01** (avance de Q-05): contraseña provisoria enviada por el ADMIN en el cuerpo (`password`, ≤ 72 bytes).
+- **QA-02**: `rol` obligatorio en `POST /usuarios`, sólo `VENDEDOR` o `ADMIN` (un CLIENTE nace por `/auth/registro`).
+- **QA-03**: no se impide que el sistema quede sin ADMIN por vencimiento; RN-05 se comprueba al revocar (vigentes ahora, usuarios activos).
+- **QA-04**: revocar una asignación abierta pero vencida → 404 «no tiene ese rol vigente».
+- **QA-05**: al reasignar un rol vencido, la fila anterior se cierra con `revocada_en = ahora`.
+- **QA-06**: `GET /usuarios/{id}/roles` devuelve el historial completo con `vigente` por fila, sin paginar.
+- **QA-07**: `GET /ventas/{id}` queda VENDEDOR/ADMIN hasta C-07 (falla cerrada).
+- **QA-08**: `actor` = correo del usuario; `accion` en texto libre (operación + afectado + rol); `SISTEMA` para la carga inicial.

@@ -11,6 +11,10 @@ if TYPE_CHECKING:
     from app.modules.libros.models import MovimientoStock
 
 
+# Actor de los eventos que no los origina una persona (p. ej. la carga inicial de seed.py, C-09).
+ACTOR_SISTEMA = "SISTEMA"
+
+
 def _ahora() -> datetime:
     return datetime.now(timezone.utc)
 
