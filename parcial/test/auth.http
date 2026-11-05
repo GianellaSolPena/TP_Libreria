@@ -174,9 +174,13 @@ Cookie: {{loginCliente.response.headers.Set-Cookie}}
 GET {{host}}/auth/yo
 
 ### C-03d · /auth/yo con Authorization Bearer y sin cookie → 401
-# Esperado: 401 {"detail": "No autenticado"}  (el encabezado Authorization se ignora)
+# Antes de correrlo: copiá el valor del JWT de la cabecera Set-Cookie de C-03a
+# (lo que está entre "access_token=" y el primer ";") y pegalo en @jwtCliente.
+# Esperado: 401 {"detail": "No autenticado"}  (el encabezado Authorization se ignora,
+# aunque el JWT sea válido).
+@jwtCliente = PEGAR_AQUI_EL_JWT_DE_C-03a
 GET {{host}}/auth/yo
-Authorization: Bearer {{loginCliente.response.headers.Set-Cookie}}
+Authorization: Bearer {{jwtCliente}}
 
 ### C-03e · /auth/yo con token alterado → 401
 # Esperado: 401 {"detail": "No autenticado"}

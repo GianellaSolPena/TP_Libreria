@@ -80,7 +80,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 - **Leer antes**: `08` §Capas, UoW y repositorios; `05` §Paginación y §Errores; `06` §Catálogo
 
 ### [C-05] `autenticacion`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completo y archivado (2026-11-05)
 - **Scope**:
   - `app/core/security.py`: bcrypt siempre con `asyncio.to_thread` bajo semáforo, costo desde `Settings`, > 72 bytes rechazado; hash ficticio real en el lifespan; JWT (PyJWT) con `sub`, `exp` y roles vigentes; cookie `access_token` HttpOnly, SameSite=Lax, Max-Age, Secure configurable; nunca en el cuerpo
   - Módulo `usuarios` por capas (repos: usuario, asignación, intento, evento); contratos `extra="forbid"`, contraseñas <= 72 bytes → 422, nunca `password_hash` en respuestas
@@ -95,7 +95,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 ### [C-06] `autorizacion-roles-eventos`
 - **Estado**: `[ ]` pendiente
 - **Scope**:
-  - `app/core/dependencies.py`: `get_usuario_actual` (401 sin cookie, token inválido/vencido, usuario inexistente o inactivo; sólo `request.cookies`, Bearer → 401), roles vigentes de `asignacion_rol` en cada petición, control del cambio obligatorio, `requiere_rol` (403); misma sesión que el UoW
+  - `app/core/dependencies.py`: `get_usuario_actual` (ya creada en C-05; aquí se completa: 401 sin cookie, token inválido/vencido, usuario inexistente o inactivo; sólo `request.cookies`, Bearer → 401), roles vigentes de `asignacion_rol` en cada petición, control del cambio obligatorio, `requiere_rol` (403); misma sesión que el UoW
   - Dos grupos de rutas en `main.py`: abierto (health, `/auth/*`, catálogo público) y protegido con el control del cambio obligatorio montado una vez; matriz de permisos de `03`
   - `POST /usuarios` (ADMIN; 201/409/422; alta de personal con contraseña provisoria hasheada antes del UoW, cambio obligatorio, rol y evento en un bloque); `GET /usuarios/{id}/roles`; `POST /usuarios/{id}/roles` (`vence_en` opcional, con zona y futuro, si no 422); `DELETE /usuarios/{id}/roles/{rol}` (escribe `revocada_en`, nunca borra)
   - RN-03 segunda asignación abierta 409; reasignar un vencido cierra la fila y abre otra; RN-05 no revocarse el ADMIN propio ni quedar sin admins → 409

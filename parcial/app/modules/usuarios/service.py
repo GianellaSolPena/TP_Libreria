@@ -76,7 +76,8 @@ async def login(
 
     # Siempre se registra el intento, en su propia sesion y transaccion.
     async with intentos_uow:
-        assert intentos_uow.intentos is not None
+        if intentos_uow.intentos is None:
+            raise RuntimeError("UoW de intentos sin repositorio inicializado")
         await intentos_uow.intentos.add(
             IntentoAcceso(email=datos.email, ip=ip, exito=exito, cuando=ahora)
         )
@@ -120,7 +121,8 @@ async def cambiar_password(
 
     async with uow:
         actual = await uow.usuarios.get_by_id(usuario.id)
-        assert actual is not None
+        if actual is None:
+            raise RuntimeError("Usuario autenticado inexistente al cambiar la contraseña")
         await uow.usuarios.update(
             actual,
             {
