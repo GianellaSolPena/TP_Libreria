@@ -1,0 +1,437 @@
+@host = http://localhost:8000
+
+@emailC02 = auth.c02@example.com
+@emailClienteSinUsuario = cliente.libro.c02@example.com
+@emailC05 = auth.c05@example.com
+@emailNoExiste = no.existe.c05@example.com
+@passwordC02 = secreta123
+@passwordC05 = correcta123
+
+# ============================================================================
+# Precondiciones
+# ============================================================================
+# 1) Base migrada y servidor arriba:
+#      cd parcial
+#      alembic upgrade head
+#      uvicorn main:app
+#
+# 2) Vaciar SOLO las filas de prueba antes de correr el archivo (psql):
+#      docker exec libreria-pg psql -U libreria -d libreria -c "
+#        DELETE FROM evento_seguridad
+#          WHERE actor IN ('auth.c02@example.com','cliente.libro.c02@example.com',
+#                          'auth.c05@example.com','no.existe.c05@example.com',
+#                          'auth.72@example.com');
+#        DELETE FROM intento_acceso
+#          WHERE email IN ('auth.c02@example.com','cliente.libro.c02@example.com',
+#                          'auth.c05@example.com','no.existe.c05@example.com',
+#                          'auth.72@example.com');
+#        DELETE FROM asignacion_rol
+#          WHERE usuario_id IN (SELECT id FROM usuario
+#                               WHERE email LIKE 'auth.%' OR email = 'cliente.libro.c02@example.com');
+#        DELETE FROM cliente
+#          WHERE email IN ('auth.c02@example.com','cliente.libro.c02@example.com',
+#                          'auth.c05@example.com','auth.72@example.com');
+#        DELETE FROM usuario
+#          WHERE email IN ('auth.c02@example.com','auth.c05@example.com','auth.72@example.com');
+#      "
+#
+# Los ids de las respuestas de ejemplo pueden variar si la base no está vacía.
+
+# ============================================================================
+# C-02 · Registro (RN-02, Q-09)
+# ============================================================================
+
+### C-02a · Registro exitoso
+# Esperado: 201
+# {"id": <id>, "email": "auth.c02@example.com", "nombre": "Cliente C02",
+#  "activo": true, "debe_cambiar_password": false}   (sin password_hash)
+# Además: una fila en usuario, una asignación CLIENTE abierta y una ficha en cliente
+# con usuario_id = id del usuario.
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{
+  "email": "{{emailC02}}",
+  "nombre": "Cliente C02",
+  "password": "{{passwordC02}}"
+}
+
+### C-02b · Mismo correo → 409 propio (sin texto de la base)
+# Esperado: 409 {"detail": "Ya existe una cuenta o un cliente con ese correo"}
+# No debe aparecer "uq_", "duplicate key" ni un 500.
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{
+  "email": "{{emailC02}}",
+  "nombre": "Otro nombre",
+  "password": "{{passwordC02}}"
+}
+
+### C-02c-1 · Cliente sin usuario (ruta del TP, todavía abierta)
+# Esperado: 201 {"id": <id>, "nombre": "Cliente sin usuario",
+#                "email": "cliente.libro.c02@example.com", "perfil": null}
+POST {{host}}/clientes/
+Content-Type: application/json
+
+{
+  "nombre": "Cliente sin usuario",
+  "email": "{{emailClienteSinUsuario}}"
+}
+
+### C-02c-2 · Registro con el correo de ese cliente → 409 y no se apropia de la ficha
+# Esperado: 409 {"detail": "Ya existe una cuenta o un cliente con ese correo"}
+# La ficha existente queda intacta (usuario_id NULL) y NO se crea usuario ni asignación.
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{
+  "email": "{{emailClienteSinUsuario}}",
+  "nombre": "Quiere apropiarse",
+  "password": "{{passwordC02}}"
+}
+
+# psql · no quedó fila suelta (esperado: 0 | 1 | t)
+# SELECT count(*) FROM usuario WHERE email = 'cliente.libro.c02@example.com';   -- 0
+# SELECT count(*) FROM cliente WHERE email = 'cliente.libro.c02@example.com';   -- 1
+# SELECT usuario_id IS NULL FROM cliente WHERE email = 'cliente.libro.c02@example.com'; -- t
+
+### C-02d · Registro con rol → 422 (no se acepta rol)
+# Esperado: 422 (campo extra prohibido)
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{
+  "email": "auth.c02.rol@example.com",
+  "nombre": "X",
+  "password": "x",
+  "rol": "ADMIN"
+}
+
+### C-02e · Contraseña de 73 bytes ASCII → 422
+# Esperado: 422 (PasswordBcrypt mide bytes UTF-8)
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{
+  "email": "auth.c02.73@example.com",
+  "nombre": "X",
+  "password": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}
+
+### C-02f · Contraseña de 37 «ñ» (74 bytes, 37 caracteres) → 422
+# Esperado: 422 sin consultar la base
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{
+  "email": "auth.c02.74@example.com",
+  "nombre": "X",
+  "password": "ñññññññññññññññññññññññññññññññññññññ"
+}
+
+### C-02g · Contraseña de 36 «ñ» (72 bytes justos) → 201
+# Esperado: 201 (el contrato la acepta)
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{
+  "email": "auth.72@example.com",
+  "nombre": "X",
+  "password": "ññññññññññññññññññññññññññññññññññññ"
+}
+
+# ============================================================================
+# C-03 · Login con cookie + usuario actual
+# ============================================================================
+
+### C-03a · Login correcto (guarda la respuesta para reusar el Set-Cookie)
+# @name loginCliente
+# Esperado: 200
+# {"mensaje": "Sesión iniciada", "debe_cambiar_password": false,
+#  "expira_en_segundos": 1800}
+# Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+# (sin Secure porque COOKIE_SECURE=false). El token NO va en el cuerpo.
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailC02}}",
+  "password": "{{passwordC02}}"
+}
+
+### C-03b · /auth/yo con la cookie del login
+# @no-cookie-jar
+# Esperado: 200
+# {"usuario": {"id": <id>, "email": "auth.c02@example.com", "nombre": "Cliente C02",
+#              "activo": true, "debe_cambiar_password": false},
+#  "roles_vigentes": ["CLIENTE"], "roles_token": ["CLIENTE"]}
+GET {{host}}/auth/yo
+Cookie: {{loginCliente.response.headers.Set-Cookie}}
+
+### C-03c · /auth/yo sin cookie → 401
+# Esperado: 401 {"detail": "No autenticado"}
+GET {{host}}/auth/yo
+
+### C-03d · /auth/yo con Authorization Bearer y sin cookie → 401
+# Esperado: 401 {"detail": "No autenticado"}  (el encabezado Authorization se ignora)
+GET {{host}}/auth/yo
+Authorization: Bearer {{loginCliente.response.headers.Set-Cookie}}
+
+### C-03e · /auth/yo con token alterado → 401
+# Esperado: 401 {"detail": "No autenticado"}
+GET {{host}}/auth/yo
+Cookie: access_token=token.invalido.alterado
+
+# ============================================================================
+# C-04 · Credenciales incorrectas indistinguibles (RN-08)
+# ============================================================================
+
+### C-04a · Correo existente con contraseña mala
+# Esperado: 401 {"detail": "Correo o contraseña incorrectos"}  (sin cookie)
+# Tiempo observado: ~360 ms (costo bcrypt).
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailC02}}",
+  "password": "malisima"
+}
+
+### C-04b · Correo inexistente
+# Esperado: 401 con EXACTAMENTE el mismo cuerpo que C-04a.
+# Tiempo observado: ~356 ms → tiempos parecidos, ~ costo bcrypt (hash ficticio).
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailNoExiste}}",
+  "password": "malisima"
+}
+
+# ============================================================================
+# C-05 · Límite de intentos fallidos (RN-07, Q-20)
+# ============================================================================
+
+### C-05-0 · Registro del usuario del caso
+# Esperado: 201
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{
+  "email": "{{emailC05}}",
+  "nombre": "Cliente C05",
+  "password": "{{passwordC05}}"
+}
+
+### C-05-1 · Falla 1
+# Esperado: 401
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailC05}}",
+  "password": "incorrecta"
+}
+
+### C-05-2 · Falla 2
+# Esperado: 401
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailC05}}",
+  "password": "incorrecta"
+}
+
+### C-05-3 · Falla 3
+# Esperado: 401
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailC05}}",
+  "password": "incorrecta"
+}
+
+### C-05-4 · Falla 4
+# Esperado: 401
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailC05}}",
+  "password": "incorrecta"
+}
+
+### C-05-5 · Falla 5
+# Esperado: 401
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailC05}}",
+  "password": "incorrecta"
+}
+
+### C-05-6 · Sexto intento → 429 con Retry-After
+# Esperado: 429 {"detail": "Demasiados intentos fallidos; probá de nuevo más tarde"}
+# Header Retry-After: <segundos enteros >= 1>  (observado 59)
+# Responde en pocos ms (sin bcrypt). NO agrega fila en intento_acceso.
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailC05}}",
+  "password": "incorrecta"
+}
+
+### C-05-7 · Insistir con la contraseña correcta durante el bloqueo → 429
+# Esperado: 429 (no se verifica la contraseña)
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailC05}}",
+  "password": "{{passwordC05}}"
+}
+
+### C-05-8 · Dos pedidos más durante el bloqueo → 429
+# Esperado: 429, 429 (la cantidad de filas de intento_acceso NO cambia)
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailC05}}",
+  "password": "incorrecta"
+}
+
+### C-05-9 · Otro pedido más durante el bloqueo → 429
+# Esperado: 429
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailC05}}",
+  "password": "incorrecta"
+}
+
+# psql · exactamente los 5 fallos (Q-20: el 429 no se registra)
+# SELECT count(*) FROM intento_acceso
+#  WHERE email = 'auth.c05@example.com' AND NOT exito;   -- 5
+
+### C-05-10 · Tras esperar Retry-After, el login correcto vuelve a funcionar
+# Esperá los segundos que devolvió Retry-After (≈60 s) antes de ejecutar.
+# Esperado: 200 {"mensaje": "Sesión iniciada", "debe_cambiar_password": false,
+#                "expira_en_segundos": 1800}
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailC05}}",
+  "password": "{{passwordC05}}"
+}
+
+# ============================================================================
+# C-05 · Cambio de contraseña y logout (RN-16)
+# ============================================================================
+
+### C-05-11 · Login para el cambio (guarda la cookie)
+# @name loginCambio
+# Esperado: 200 + Set-Cookie
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailC02}}",
+  "password": "{{passwordC02}}"
+}
+
+### C-05-12 · Cambio con contraseña actual incorrecta → 401
+# @no-cookie-jar
+# Esperado: 401 {"detail": "La contraseña actual no es correcta"}
+# No cambia nada ni deja evento.
+POST {{host}}/auth/cambiar-password
+Content-Type: application/json
+Cookie: {{loginCambio.response.headers.Set-Cookie}}
+
+{
+  "password_actual": "mala",
+  "password_nueva": "nueva123"
+}
+
+### C-05-13 · Contraseña nueva de 73 bytes → 422
+# @no-cookie-jar
+# Esperado: 422
+POST {{host}}/auth/cambiar-password
+Content-Type: application/json
+Cookie: {{loginCambio.response.headers.Set-Cookie}}
+
+{
+  "password_actual": "{{passwordC02}}",
+  "password_nueva": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}
+
+### C-05-14 · Cambio sin cookie → 401
+# Esperado: 401 {"detail": "No autenticado"}
+POST {{host}}/auth/cambiar-password
+Content-Type: application/json
+
+{
+  "password_actual": "{{passwordC02}}",
+  "password_nueva": "nueva123"
+}
+
+### C-05-15 · Cambio correcto → 200, sin Set-Cookie
+# @no-cookie-jar
+# Esperado: 200 {"mensaje": "Contraseña actualizada"}  (no emite token nuevo)
+POST {{host}}/auth/cambiar-password
+Content-Type: application/json
+Cookie: {{loginCambio.response.headers.Set-Cookie}}
+
+{
+  "password_actual": "{{passwordC02}}",
+  "password_nueva": "nueva123"
+}
+
+### C-05-16 · La misma cookie sigue sirviendo y debe_cambiar_password=false
+# @no-cookie-jar
+# Esperado: 200 con "debe_cambiar_password": false
+GET {{host}}/auth/yo
+Cookie: {{loginCambio.response.headers.Set-Cookie}}
+
+### C-05-17 · Login con la contraseña vieja → 401
+# Esperado: 401 {"detail": "Correo o contraseña incorrectos"}
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailC02}}",
+  "password": "{{passwordC02}}"
+}
+
+### C-05-18 · Login con la contraseña nueva → 200
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{emailC02}}",
+  "password": "nueva123"
+}
+
+# psql · evento de RN-16 (esperado: >= 1)
+# SELECT count(*) FROM evento_seguridad
+#  WHERE actor = 'auth.c02@example.com' AND accion = 'Cambio de contraseña';
+
+### C-05-19 · Logout con sesión → 200 y cookie borrada
+# @no-cookie-jar
+# Esperado: 200 {"mensaje": "Sesión cerrada"}
+# Set-Cookie: access_token=""; expires=<fecha actual GMT>;
+#             HttpOnly; Max-Age=0; Path=/; SameSite=lax
+POST {{host}}/auth/logout
+Cookie: {{loginCambio.response.headers.Set-Cookie}}
+
+### C-05-20 · Logout sin sesión → 200
+# Esperado: 200 {"mensaje": "Sesión cerrada"}
+POST {{host}}/auth/logout

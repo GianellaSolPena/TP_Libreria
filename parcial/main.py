@@ -1,11 +1,11 @@
-import asyncio
 import logging
+import secrets
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-import bcrypt
 from fastapi import FastAPI
 
+from app.core import security
 from app.core.config import get_settings
 from app.core.database import create_engine, create_session_factory
 from app.modules import models as _modelos  # noqa: F401  (registra TODOS los mapeos, incl. usuarios)
@@ -15,6 +15,7 @@ from app.modules.editoriales.router import router as editoriales_router
 from app.modules.generos.router import router as generos_router
 from app.modules.health.router import router as health_router
 from app.modules.libros.router import router as libros_router
+from app.modules.usuarios.router import router as auth_router
 from app.modules.ventas.router import router as ventas_router
 
 
@@ -26,9 +27,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
     # Hash ficticio (costo = BCRYPT_ROUNDS) para igualar tiempos en el login (C-05).
-    app.state.hash_ficticio = await asyncio.to_thread(
-        bcrypt.hashpw, b"hash-ficticio", bcrypt.gensalt(rounds=settings.BCRYPT_ROUNDS)
-    )
+    # Se calcula con el mismo camino (hilo + semáforo) que un hash real, sobre un
+    # valor aleatorio que nadie conoce.
+    app.state.hash_ficticio = await security.hashear_password(secrets.token_urlsafe(32))
     try:
         yield
     finally:
@@ -55,4 +56,5 @@ app.include_router(clientes_router)
 app.include_router(editoriales_router)
 app.include_router(generos_router)
 app.include_router(libros_router)
+app.include_router(auth_router)
 app.include_router(ventas_router)

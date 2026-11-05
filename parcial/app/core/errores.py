@@ -32,6 +32,18 @@ class PaginaInexistente(Exception):
         self.pages = pages
 
 
+class CredencialesInvalidas(Exception):
+    def __init__(self, mensaje: str) -> None:
+        super().__init__(mensaje)
+        self.mensaje = mensaje
+
+
+class DemasiadosIntentos(Exception):
+    def __init__(self, retry_after: int) -> None:
+        super().__init__("Demasiados intentos fallidos")
+        self.retry_after = retry_after
+
+
 @contextmanager
 def traducir_errores(conflicto: str, conflicto_fk: str | None = None) -> Iterator[None]:
     """Traduce errores de dominio y de la base a HTTP, sin usar el texto de la base."""
@@ -45,6 +57,14 @@ def traducir_errores(conflicto: str, conflicto_fk: str | None = None) -> Iterato
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             f"La página {exc.page} no existe: hay {exc.pages}",
+        ) from exc
+    except CredencialesInvalidas as exc:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.mensaje) from exc
+    except DemasiadosIntentos as exc:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Demasiados intentos fallidos; probá de nuevo más tarde",
+            headers={"Retry-After": str(exc.retry_after)},
         ) from exc
     except IntegrityError as exc:
         sqlstate = getattr(exc.orig, "sqlstate", None)
