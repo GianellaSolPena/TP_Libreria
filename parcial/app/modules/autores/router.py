@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
@@ -8,8 +8,11 @@ from app.core.dependencies import solo_admin
 from app.core.errores import IdPath, traducir_errores
 from app.core.paginacion import Pagina, PaginaDep
 from app.modules.autores import service
-from app.modules.autores.schemas import AutorCreate, AutorLibroRead, AutorRead, AutorUpdate
+from app.modules.autores.schemas import AutorCreate, AutorRead, AutorUpdate
 from app.modules.autores.unit_of_work import AutoresUnitOfWork
+from app.modules.libros import service as libros_service
+from app.modules.libros.schemas import LibroRead
+from app.modules.libros.unit_of_work import LibrosUnitOfWork
 
 # GET sin sesion (matriz de 03) y escrituras solo ADMIN: dos routers con el mismo prefijo.
 router_publico = APIRouter(prefix="/autores", tags=["autores"])
@@ -50,13 +53,15 @@ async def actualizar_autor(autor_id: IdPath, datos: AutorUpdate, uow: UowDep) ->
         return await service.actualizar(uow, autor_id, datos)
 
 
-# limit/offset y lista plana hasta C-07 (pasa al envoltorio con la baja lógica de libros).
-@router_publico.get("/{autor_id}/libros", response_model=list[AutorLibroRead])
+def get_libros_uow(session: Annotated[AsyncSession, Depends(get_session)]) -> LibrosUnitOfWork:
+    return LibrosUnitOfWork(session)
+
+
+@router_publico.get("/{autor_id}/libros", response_model=Pagina[LibroRead])
 async def listar_libros_de_autor(
     autor_id: IdPath,
-    uow: UowDep,
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-) -> list[AutorLibroRead]:
+    pagina: PaginaDep,
+    uow: Annotated[LibrosUnitOfWork, Depends(get_libros_uow)],
+) -> Pagina[LibroRead]:
     with traducir_errores(CONFLICTO):
-        return await service.listar_libros(uow, autor_id, limit, offset)
+        return await libros_service.listar_por(uow, pagina.page, pagina.size, autor_id=autor_id)

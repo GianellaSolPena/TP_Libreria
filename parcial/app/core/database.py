@@ -27,16 +27,3 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
     session_factory: async_sessionmaker[AsyncSession] = request.app.state.session_factory
     async with session_factory() as session:
         yield session
-
-
-# TRANSITORIO: se borra en C-07
-async def get_session_tp(request: Request) -> AsyncIterator[AsyncSession]:
-    """Comportamiento anterior (confirma al salir) para libros/clientes/ventas."""
-    session_factory: async_sessionmaker[AsyncSession] = request.app.state.session_factory
-    async with session_factory() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise

@@ -1,0 +1,1041 @@
+@host = http://localhost:8000
+
+@emailAdmin = c07.admin@example.com
+@emailVendedor = c07.vendedor@example.com
+@emailAna = c07.ana@example.com
+@emailBruno = c07.bruno@example.com
+@emailRosa = c07.rosa@example.com
+@passwordAdmin = adminpass123
+@passwordProvisoria = provisoria123
+@passwordVendedor = vendedor123
+@passwordCliente = clientepass123
+# Ids de las fichas de cliente de Ana y Bruno (las crea el registro): completar con el
+# resultado de la consulta del paso A-08 antes de correr las secciones de ventas.
+@clienteAna = 0
+@clienteBruno = 0
+
+# ============================================================================
+# Precondiciones (C-07 de la hoja de ruta; seed.py llega en C-09)
+# ============================================================================
+# 1) Base migrada y servidor arriba (C-07 no agrega migraciones):
+#      cd parcial
+#      alembic upgrade head
+#      uvicorn main:app
+#
+# 2) Vaciar SOLO las filas de prueba de este archivo (prefijo «c07.») antes de correrlo.
+#    Los movimientos de stock son solo agregado (disparador 0004): para limpiar las
+#    filas de prueba se desactiva el disparador dentro de UNA transacción y se
+#    repone antes de confirmar; nunca se tocan los movimientos de datos reales.
+#      docker exec libreria-pg psql -U libreria -d libreria -c "
+#        BEGIN;
+#        ALTER TABLE movimiento_stock DISABLE TRIGGER tg_movimiento_stock_solo_agregado;
+#        DELETE FROM movimiento_stock
+#          WHERE libro_id IN (SELECT id FROM libro WHERE titulo LIKE 'c07.%')
+#             OR usuario_id IN (SELECT id FROM usuario WHERE email LIKE 'c07.%')
+#             OR venta_id IN (SELECT id FROM venta WHERE cliente_id IN
+#                              (SELECT id FROM cliente WHERE email LIKE 'c07.%'));
+#        ALTER TABLE movimiento_stock ENABLE TRIGGER tg_movimiento_stock_solo_agregado;
+#        DELETE FROM renglon_venta
+#          WHERE venta_id IN (SELECT id FROM venta WHERE cliente_id IN
+#                              (SELECT id FROM cliente WHERE email LIKE 'c07.%'))
+#             OR libro_id IN (SELECT id FROM libro WHERE titulo LIKE 'c07.%');
+#        DELETE FROM venta WHERE cliente_id IN (SELECT id FROM cliente WHERE email LIKE 'c07.%');
+#        DELETE FROM perfil_cliente WHERE cliente_id IN (SELECT id FROM cliente WHERE email LIKE 'c07.%');
+#        DELETE FROM cliente WHERE email LIKE 'c07.%';
+#        DELETE FROM libro_autor WHERE libro_id IN (SELECT id FROM libro WHERE titulo LIKE 'c07.%');
+#        DELETE FROM libro WHERE titulo LIKE 'c07.%';
+#        DELETE FROM autor WHERE nombre LIKE 'c07.%';
+#        DELETE FROM editorial WHERE nombre LIKE 'c07.%';
+#        DELETE FROM genero WHERE nombre LIKE 'c07.%';
+#        DELETE FROM evento_seguridad WHERE actor LIKE 'c07.%' OR accion LIKE '%c07.%';
+#        DELETE FROM intento_acceso WHERE email LIKE 'c07.%';
+#        DELETE FROM asignacion_rol WHERE usuario_id IN (SELECT id FROM usuario WHERE email LIKE 'c07.%');
+#        DELETE FROM usuario WHERE email LIKE 'c07.%';
+#        COMMIT;
+#      "
+#
+# 3) Registrar al ADMIN y a las dos clientes (secciones «Arranque») y darle el
+#    rol ADMIN por psql, porque ningún endpoint crea el primer ADMIN (en C-09 lo
+#    hace seed.py). El VENDEDOR se da de alta por POST /usuarios:
+#      docker exec libreria-pg psql -U libreria -d libreria -c "
+#        INSERT INTO asignacion_rol (usuario_id, rol, desde)
+#          SELECT id, 'ADMIN', now() FROM usuario WHERE email = 'c07.admin@example.com';"
+#
+# Invariante de stock (D12), para correr después de cada caso que escribe stock.
+# Se limita a los libros de prueba porque el seed.sql del TP carga libros con
+# stock y sin movimientos (lo retira C-09). Esperado: 0 filas.
+#      SELECT l.id, l.stock, COALESCE(SUM(m.cantidad), 0) AS suma
+#        FROM libro l LEFT JOIN movimiento_stock m ON m.libro_id = l.id
+#       WHERE l.titulo LIKE 'c07.%'
+#       GROUP BY l.id HAVING l.stock <> COALESCE(SUM(m.cantidad), 0);
+#
+# Cada pedido protegido usa «# @no-cookie-jar» + «Cookie:» para tener varias
+# sesiones a la vez. Los ids de las respuestas de ejemplo pueden variar.
+# Los títulos de prueba empiezan con «c07.» para no mezclarse con el catálogo real.
+
+# ============================================================================
+# Arranque · registros, logins y referencias del catálogo
+# ============================================================================
+
+### A-01 · Registro del ADMIN (queda CLIENTE; el ADMIN se da por psql, paso 3)
+# @no-cookie-jar
+# Esperado: 201
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "nombre": "Admin C07", "password": "{{passwordAdmin}}"}
+
+### A-02 · Registro de Ana (cliente con usuario)
+# @no-cookie-jar
+# Esperado: 201
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{"email": "{{emailAna}}", "nombre": "Ana C07", "password": "{{passwordCliente}}"}
+
+### A-03 · Registro de Bruno (cliente con usuario)
+# @no-cookie-jar
+# Esperado: 201
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{"email": "{{emailBruno}}", "nombre": "Bruno C07", "password": "{{passwordCliente}}"}
+
+# >>> Ahora ejecutá el paso 3 de las precondiciones (psql: rol ADMIN).
+# >>> Recién después hacé los logins: el token lleva los roles del momento del login.
+
+### A-04 · Login del ADMIN
+# @name loginAdmin
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "password": "{{passwordAdmin}}"}
+
+### A-05 · Login de Ana
+# @name loginAna
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAna}}", "password": "{{passwordCliente}}"}
+
+### A-06 · Login de Bruno
+# @name loginBruno
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailBruno}}", "password": "{{passwordCliente}}"}
+
+### A-07a · Alta del VENDEDOR con contraseña provisoria
+# @name altaVendedor
+# @no-cookie-jar
+# Esperado: 201 {"id": <id>, ..., "debe_cambiar_password": true}
+POST {{host}}/usuarios
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"email": "{{emailVendedor}}", "nombre": "Vendedor C07", "password": "{{passwordProvisoria}}", "rol": "VENDEDOR"}
+
+### A-07b · Login del VENDEDOR con la provisoria
+# @name loginVendedor
+# @no-cookie-jar
+# Esperado: 200 {"debe_cambiar_password": true, ...}
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailVendedor}}", "password": "{{passwordProvisoria}}"}
+
+### A-07c · El VENDEDOR cambia su contraseña (la MISMA cookie queda al día)
+# @no-cookie-jar
+# Esperado: 200 {"mensaje": "Contraseña actualizada"}
+POST {{host}}/auth/cambiar-password
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"password_actual": "{{passwordProvisoria}}", "password_nueva": "{{passwordVendedor}}"}
+
+### A-08 · Ids de las fichas de Ana y Bruno (psql) → completar @clienteAna y @clienteBruno arriba
+#      docker exec libreria-pg psql -U libreria -d libreria -c "
+#        SELECT id, email FROM cliente WHERE email IN ('c07.ana@example.com', 'c07.bruno@example.com');"
+# Esperado: dos filas (el registro crea la ficha de cada cliente y la vincula a su usuario).
+GET {{host}}/health/live
+
+### A-09 · Referencia: editorial de prueba
+# @name refEditorial
+# @no-cookie-jar
+# Esperado: 201
+POST {{host}}/editoriales
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"nombre": "c07.Editorial", "pais": "Argentina"}
+
+### A-10 · Referencia: género de prueba
+# @name refGenero
+# @no-cookie-jar
+# Esperado: 201
+POST {{host}}/generos
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"nombre": "c07.Novela"}
+
+### A-11 · Referencia: autor 1
+# @name refAutor1
+# @no-cookie-jar
+# Esperado: 201
+POST {{host}}/autores
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"nombre": "c07.Autor Uno", "nacionalidad": "Argentina"}
+
+### A-12 · Referencia: autor 2
+# @name refAutor2
+# @no-cookie-jar
+# Esperado: 201
+POST {{host}}/autores
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"nombre": "c07.Autor Dos", "nacionalidad": "Uruguay"}
+
+# >>> Cinco libros del catálogo de prueba con su stock inicial (cada alta deja su movimiento).
+
+### A-13 · Libro «c07.Rayuela» (stock inicial 10)
+# @name libRayuela
+# @no-cookie-jar
+# Esperado: 201 con stock 10
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-ray", "titulo": "c07.Rayuela", "precio": "25000.00", "stock_inicial": 10, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### A-14 · Libro «c07.Bestiario» (stock inicial 1)
+# @name libBestiario
+# @no-cookie-jar
+# Esperado: 201 con stock 1
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-bes", "titulo": "c07.Bestiario", "precio": "18000.00", "stock_inicial": 1, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### A-15 · Libro «c07.Ficciones» (stock inicial 15)
+# @name libFicciones
+# @no-cookie-jar
+# Esperado: 201 con stock 15
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-fic", "titulo": "c07.Ficciones", "precio": "18000.00", "stock_inicial": 15, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### A-16 · Libro «c07.Respiración artificial» (stock inicial 3)
+# @name libRespiracion
+# @no-cookie-jar
+# Esperado: 201 con stock 3
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-res", "titulo": "c07.Respiración artificial", "precio": "27000.00", "stock_inicial": 3, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### A-17 · Libro «c07.Antología» (stock inicial 8)
+# @name libAntologia
+# @no-cookie-jar
+# Esperado: 201 con stock 8
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-ant", "titulo": "c07.Antología", "precio": "22000.00", "stock_inicial": 8, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+# ============================================================================
+# LIBROS · alta, PATCH, reposición, movimientos y permisos
+# ============================================================================
+
+### L-01 · Alta con el cuerpo del PDF (dos coautores, stock inicial 4)
+# @name libPdf
+# @no-cookie-jar
+# Esperado: 201 {"id": <id>, "stock": 4, "editorial": {...}, "genero": {...}, "autorias": [2 coautores]}
+# psql: SELECT cantidad, motivo, venta_id, usuario_id FROM movimiento_stock WHERE libro_id = <id>;
+#   → una fila: 4 | Stock inicial | NULL | <id del ADMIN>
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "978-950-00-0006-6", "titulo": "c07.Los que aman, odian", "precio": "21000.00", "stock_inicial": 4, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "coautor", "orden": 1}, {"autor_id": {{refAutor2.response.body.$.id}}, "rol": "coautor", "orden": 2}]}
+
+### L-02 · «stock» en el cuerpo → 422, no se crea nada
+# @no-cookie-jar
+# Esperado: 422
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-x1", "titulo": "c07.x1", "precio": "10.00", "stock_inicial": 1, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}], "stock": 5}
+
+### L-03 · autores vacíos → 422
+# @no-cookie-jar
+# Esperado: 422
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-x2", "titulo": "c07.x2", "precio": "10.00", "stock_inicial": 1, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": []}
+
+### L-04 · autor repetido → 422
+# @no-cookie-jar
+# Esperado: 422
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-x3", "titulo": "c07.x3", "precio": "10.00", "stock_inicial": 1, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}, {"autor_id": {{refAutor1.response.body.$.id}}, "rol": "coautor", "orden": 2}]}
+
+### L-05 · rol fuera de autor/coautor/traductor/ilustrador → 422
+# @no-cookie-jar
+# Esperado: 422
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-x4", "titulo": "c07.x4", "precio": "10.00", "stock_inicial": 1, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "editor", "orden": 1}]}
+
+### L-05b · precio 0 → 422
+# @no-cookie-jar
+# Esperado: 422
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-x5", "titulo": "c07.x5", "precio": "0", "stock_inicial": 1, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### L-05c · stock_inicial negativo → 422
+# @no-cookie-jar
+# Esperado: 422
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-x6", "titulo": "c07.x6", "precio": "10.00", "stock_inicial": -1, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### L-06 · Autor inexistente → 409 propio y sin filas
+# @no-cookie-jar
+# Esperado: 409 {"detail": "La editorial, el género o algún autor indicado no existe"}
+# psql: SELECT count(*) FROM libro WHERE isbn = 'c07-x7';  → 0  (tampoco autorías ni movimientos)
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-x7", "titulo": "c07.x7", "precio": "10.00", "stock_inicial": 1, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": 999999, "rol": "autor", "orden": 1}]}
+
+### L-06b · Editorial inexistente → 409
+# @no-cookie-jar
+# Esperado: 409 (sin texto de la base)
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-x8", "titulo": "c07.x8", "precio": "10.00", "stock_inicial": 1, "editorial_id": 999999, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### L-07 · stock_inicial 0 → 201 sin movimientos
+# @name libSinStock
+# @no-cookie-jar
+# Esperado: 201 con stock 0
+# psql: SELECT count(*) FROM movimiento_stock WHERE libro_id = <id>;  → 0
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-0stock", "titulo": "c07.SinStock", "precio": "10.00", "stock_inicial": 0, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### L-08 · ISBN igual al de un vigente → 409
+# @no-cookie-jar
+# Esperado: 409 {"detail": "Ya existe un libro vigente con ese ISBN"}
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "978-950-00-0006-6", "titulo": "c07.Otro", "precio": "10.00", "stock_inicial": 1, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### L-09 · PATCH parcial: solo el precio → 200
+# @no-cookie-jar
+# Esperado: 200 con precio 26000.00, título y stock 4 sin cambios
+PATCH {{host}}/libros/{{libPdf.response.body.$.id}}
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"precio": "26000.00"}
+
+### L-10 · PATCH con «stock» → 422 (C-16 parte); ni stock ni movimientos cambian
+# @no-cookie-jar
+# Esperado: 422
+PATCH {{host}}/libros/{{libPdf.response.body.$.id}}
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"stock": 99}
+
+### L-10b · PATCH con isbn → 422
+# @no-cookie-jar
+# Esperado: 422
+PATCH {{host}}/libros/{{libPdf.response.body.$.id}}
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "x"}
+
+### L-10c · PATCH con null → 422
+# @no-cookie-jar
+# Esperado: 422
+PATCH {{host}}/libros/{{libPdf.response.body.$.id}}
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"titulo": null}
+
+### L-10d · PATCH de un libro inexistente → 404
+# @no-cookie-jar
+# Esperado: 404
+PATCH {{host}}/libros/99999999
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"precio": "1.00"}
+
+### L-11 · Reponer 3 → 200 con el libro y el movimiento
+# @no-cookie-jar
+# Esperado: 200 {"libro": {..., "stock": 7}, "movimiento": {"cantidad": 3, "motivo": "Reposición", "venta_id": null, ...}}
+POST {{host}}/libros/{{libPdf.response.body.$.id}}/reponer
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"cantidad": 3}
+
+### L-11b · Reponer 0 → 422
+# @no-cookie-jar
+# Esperado: 422
+POST {{host}}/libros/{{libPdf.response.body.$.id}}/reponer
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"cantidad": 0}
+
+### L-11c · Reponer un libro inexistente → 404
+# @no-cookie-jar
+# Esperado: 404
+POST {{host}}/libros/99999999/reponer
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"cantidad": 1}
+
+### L-12 · Reponer 2147483647: el stock desborda int4 → 409 propio (nunca 500)
+# @no-cookie-jar
+# Esperado: 409 {"detail": "El valor supera el máximo permitido"}
+# El stock y los movimientos no cambian.
+POST {{host}}/libros/{{libPdf.response.body.$.id}}/reponer
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"cantidad": 2147483647}
+
+### L-13 · Movimientos del libro: alta y reposición, del más antiguo al más nuevo
+# @no-cookie-jar
+# Esperado: 200 {"items": [{"cantidad": 4, "motivo": "Stock inicial", ...}, {"cantidad": 3, "motivo": "Reposición", ...}], "total": 2, "page": 1, "size": 20, "pages": 1}
+GET {{host}}/libros/{{libPdf.response.body.$.id}}/movimientos
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### L-13b · Movimientos de un libro inexistente → 404
+# @no-cookie-jar
+# Esperado: 404
+GET {{host}}/libros/99999999/movimientos
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### L-14 · Los movimientos no se modifican ni se borran (psql, no hay endpoint)
+# Con el id de un movimiento de prueba, ambos fallan por el disparador 0004
+# (restrict_violation, SQLSTATE 23001) y la fila queda intacta:
+#   UPDATE movimiento_stock SET cantidad = 999 WHERE id = <id>;
+#   DELETE FROM movimiento_stock WHERE id = <id>;
+#   SELECT cantidad FROM movimiento_stock WHERE id = <id>;   -- sigue igual
+GET {{host}}/health/live
+
+### L-15 · Un VENDEDOR no da de alta libros → 403 (antes que la validación)
+# @no-cookie-jar
+# Esperado: 403 {"detail": "No tenés permiso para esta operación"}
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"isbn": "c07-p1", "titulo": "c07.p1", "precio": "10.00", "stock_inicial": 1, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### L-15b · Una cliente no da de alta libros → 403
+# @no-cookie-jar
+# Esperado: 403
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+{"isbn": "c07-p2", "titulo": "c07.p2", "precio": "10.00", "stock_inicial": 1, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### L-15c · Sin cookie → 401
+# Esperado: 401 {"detail": "No autenticado"}
+POST {{host}}/libros
+Content-Type: application/json
+
+{"isbn": "c07-p3", "titulo": "c07.p3", "precio": "10.00", "stock_inicial": 1, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### L-15d · Un VENDEDOR no ve los movimientos → 403
+# @no-cookie-jar
+# Esperado: 403
+GET {{host}}/libros/{{libPdf.response.body.$.id}}/movimientos
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### L-15e · Un VENDEDOR no repone → 403
+# @no-cookie-jar
+# Esperado: 403
+POST {{host}}/libros/{{libPdf.response.body.$.id}}/reponer
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cantidad": 1}
+
+# ============================================================================
+# C-13 · Baja lógica del libro y reuso del ISBN
+# ============================================================================
+
+### C-13a · Libro a dar de baja
+# @name libEfimero
+# @no-cookie-jar
+# Esperado: 201 con stock 5
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-efi", "titulo": "c07.Efímero", "precio": "10.00", "stock_inicial": 5, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### C-13b · Baja → 204 sin cuerpo
+# @no-cookie-jar
+# Esperado: 204 (sin cuerpo)
+# psql: SELECT id, borrado_en FROM libro WHERE isbn = 'c07-efi';  → la fila sigue, con borrado_en
+DELETE {{host}}/libros/{{libEfimero.response.body.$.id}}
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-13c · GET del libro dado de baja → 404
+# Esperado: 404
+GET {{host}}/libros/{{libEfimero.response.body.$.id}}
+
+### C-13d · Ya no aparece en el catálogo
+# Esperado: 200 {"items": [], "total": 0, ...}
+GET {{host}}/libros?titulo=c07.Efímero
+
+### C-13e · DELETE repetido → 404 (igual PATCH)
+# @no-cookie-jar
+# Esperado: 404
+DELETE {{host}}/libros/{{libEfimero.response.body.$.id}}
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-13f · Reponer un libro dado de baja → 409 sin escrituras
+# @no-cookie-jar
+# Esperado: 409 {"detail": "No se puede reponer un libro dado de baja"}
+POST {{host}}/libros/{{libEfimero.response.body.$.id}}/reponer
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"cantidad": 5}
+
+### C-13g · Sus movimientos siguen visibles para el ADMIN → 200
+# @no-cookie-jar
+# Esperado: 200 con total 1 (Stock inicial)
+GET {{host}}/libros/{{libEfimero.response.body.$.id}}/movimientos
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-13h · Alta con el mismo ISBN → 201 (el ISBN es único solo entre vigentes)
+# @name libEfimero2
+# @no-cookie-jar
+# Esperado: 201
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-efi", "titulo": "c07.Efímero (nuevo)", "precio": "10.00", "stock_inicial": 2, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### C-13i · Un segundo vigente con ese ISBN → 409
+# @no-cookie-jar
+# Esperado: 409 {"detail": "Ya existe un libro vigente con ese ISBN"}
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-efi", "titulo": "c07.Efímero (otro)", "precio": "10.00", "stock_inicial": 2, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+# ============================================================================
+# Catálogo público (sin sesión) · paginación y rutas sin barra final
+# ============================================================================
+
+### CAT-01 · Listado paginado con envoltorio
+# Esperado: 200 {"items": [2], "total": <vigentes>, "page": 1, "size": 2, "pages": <ceil(total/2)>}
+GET {{host}}/libros?size=2
+
+### CAT-02 · Búsqueda con inyección (' OR '1'='1) → total 0
+# Esperado: 200 {"items": [], "total": 0, "page": 1, "size": 20, "pages": 1}
+GET {{host}}/libros?titulo=%27%20OR%20%271%27%3D%271
+
+### CAT-03 · Título parcial sin distinguir mayúsculas, size=1
+# Esperado: 200 con 1 item, total 1, pages 1
+GET {{host}}/libros?titulo=c07.ficc&size=1
+
+### CAT-04 · page=2 de ese filtro → 422
+# Esperado: 422 {"detail": "La página 2 no existe: hay 1"}
+GET {{host}}/libros?titulo=c07.ficc&size=1&page=2
+
+### CAT-05 · size=500 → 422
+# Esperado: 422
+GET {{host}}/libros?size=500
+
+### CAT-06 · Detalle con editorial, género y autorías
+# Esperado: 200
+GET {{host}}/libros/{{libPdf.response.body.$.id}}
+
+### CAT-07 · Libro inexistente → 404
+# Esperado: 404
+GET {{host}}/libros/99999999
+
+### CAT-08 · Libros de una editorial
+# Esperado: 200 con el envoltorio; no incluye el dado de baja
+GET {{host}}/editoriales/{{refEditorial.response.body.$.id}}/libros
+
+### CAT-09 · Libros de una editorial inexistente → 404
+# Esperado: 404
+GET {{host}}/editoriales/9999999/libros
+
+### CAT-10 · Libros de un género
+# Esperado: 200 con el envoltorio
+GET {{host}}/generos/{{refGenero.response.body.$.id}}/libros
+
+### CAT-11 · Libros de un autor (solo los vigentes)
+# Esperado: 200 con total 1
+GET {{host}}/autores/{{refAutor2.response.body.$.id}}/libros
+
+### CAT-12 · Libros de un autor inexistente → 404
+# Esperado: 404
+GET {{host}}/autores/9999999/libros
+
+# ============================================================================
+# CLIENTES · alta, consulta, PATCH, perfil y ventas
+# ============================================================================
+
+### CL-01 · Alta de un cliente → 201 con perfil nulo
+# @name cliRosa
+# @no-cookie-jar
+# Esperado: 201 {"id": <id>, "nombre": "Rosa Díaz", "email": "c07.rosa@example.com", "perfil": null}
+POST {{host}}/clientes
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"nombre": "Rosa Díaz", "email": "{{emailRosa}}"}
+
+### CL-02 · Mismo correo → 409
+# @no-cookie-jar
+# Esperado: 409 {"detail": "Ya existe un cliente con ese correo"}
+# psql: SELECT count(*) FROM cliente WHERE email = 'c07.rosa@example.com';  → 1
+POST {{host}}/clientes
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"nombre": "Otra", "email": "{{emailRosa}}"}
+
+### CL-03 · «usuario_id» en el cuerpo → 422
+# @no-cookie-jar
+# Esperado: 422
+POST {{host}}/clientes
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"nombre": "X", "email": "c07.x@example.com", "usuario_id": 1}
+
+### CL-03b · Correo mal formado → 422
+# @no-cookie-jar
+# Esperado: 422
+POST {{host}}/clientes
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"nombre": "X", "email": "mal"}
+
+### CL-04 · Una cliente (solo CLIENTE) no da de alta clientes → 403
+# @no-cookie-jar
+# Esperado: 403
+POST {{host}}/clientes
+Content-Type: application/json
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+{"nombre": "X", "email": "c07.z@example.com"}
+
+### CL-05 · GET de un cliente sin perfil → 200 perfil null
+# @no-cookie-jar
+# Esperado: 200 con "perfil": null
+GET {{host}}/clientes/{{cliRosa.response.body.$.id}}
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### CL-05b · GET de un cliente inexistente → 404
+# @no-cookie-jar
+# Esperado: 404
+GET {{host}}/clientes/99999999
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### CL-06 · PATCH parcial: solo el nombre
+# @no-cookie-jar
+# Esperado: 200 con nombre nuevo y correo sin cambios
+PATCH {{host}}/clientes/{{cliRosa.response.body.$.id}}
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"nombre": "Rosa D."}
+
+### CL-07 · PATCH con el correo de otro cliente → 409 y sin cambios
+# @no-cookie-jar
+# Esperado: 409 {"detail": "Ya existe un cliente con ese correo"}
+PATCH {{host}}/clientes/{{cliRosa.response.body.$.id}}
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"email": "{{emailAna}}"}
+
+### CL-07c · PATCH de correo sobre un cliente con usuario (Ana) → 409 y sin cambios (QA-12)
+# @no-cookie-jar
+# Esperado: 409 {"detail": "El correo de un cliente con cuenta no se puede cambiar"}
+PATCH {{host}}/clientes/{{clienteAna}}
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"email": "otro.correo.c07@example.com"}
+
+### CL-07b · PATCH con null → 422
+# @no-cookie-jar
+# Esperado: 422
+PATCH {{host}}/clientes/{{cliRosa.response.body.$.id}}
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"nombre": null}
+
+### CL-08 · Perfil del cliente → 201
+# @no-cookie-jar
+# Esperado: 201
+POST {{host}}/clientes/{{cliRosa.response.body.$.id}}/perfil
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"telefono": "351-555-0000", "direccion": "Calle 1"}
+
+### CL-08b · Segundo perfil → 409
+# @no-cookie-jar
+# Esperado: 409 {"detail": "El cliente ya tiene un perfil"}
+# psql: SELECT count(*) FROM perfil_cliente WHERE cliente_id = <id>;  → 1
+POST {{host}}/clientes/{{cliRosa.response.body.$.id}}/perfil
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"telefono": "351-555-0000"}
+
+### CL-08c · Perfil de un cliente inexistente → 404
+# @no-cookie-jar
+# Esperado: 404
+POST {{host}}/clientes/99999999/perfil
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"telefono": "1"}
+
+### CL-09 · GET con perfil → 200
+# @no-cookie-jar
+# Esperado: 200 con "perfil": {"telefono": "351-555-0000", "direccion": "Calle 1", ...}
+GET {{host}}/clientes/{{cliRosa.response.body.$.id}}
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### CL-10 · Ventas de un cliente sin ventas → 200 vacío
+# @no-cookie-jar
+# Esperado: 200 {"items": [], "total": 0, "page": 1, "size": 20, "pages": 1}
+GET {{host}}/clientes/{{cliRosa.response.body.$.id}}/ventas
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### CL-10b · Ventas de un cliente inexistente → 404
+# @no-cookie-jar
+# Esperado: 404
+GET {{host}}/clientes/99999999/ventas
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### CL-11 · Listado de clientes con envoltorio
+# @no-cookie-jar
+# Esperado: 200 con items (cada uno con su perfil), total, page, size, pages
+GET {{host}}/clientes?size=2
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+# ============================================================================
+# VENTAS · C-10, C-11 y C-12
+# ============================================================================
+
+### C-10 · Venta válida con dos renglones → 201 con precios copiados y total
+# @name venta1
+# @no-cookie-jar
+# Esperado: 201 {"id": <id>, "total": "77000.00", "cliente": {...}, "renglones": [{"titulo": "c07.Rayuela", "cantidad": 2, "precio_unitario": "25000.00", "subtotal": "50000.00"}, {"titulo": "c07.Respiración artificial", "cantidad": 1, "precio_unitario": "27000.00", "subtotal": "27000.00"}]}
+# psql: stock de Rayuela 8 y de Respiración 2; dos movimientos nuevos de -2 y -1, motivo «Venta»,
+#   con venta_id = <id> y usuario_id = <id del vendedor>.
+# psql (invariante de D12, ver precondiciones): 0 filas
+# Consola de uvicorn: la línea «POST /ventas ... 201» aparece ANTES de «Comprobante de la venta <id> enviado al cliente».
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": {{clienteAna}}, "renglones": [{"libro_id": {{libRayuela.response.body.$.id}}, "cantidad": 2}, {"libro_id": {{libRespiracion.response.body.$.id}}, "cantidad": 1}]}
+
+### C-11 · Un libro alcanza y otro no → 409 y NO queda ninguna escritura
+# @no-cookie-jar
+# Esperado: 409 {"detail": "No hay stock suficiente de «c07.Bestiario»: hay 1, se pidieron 2"}
+# psql: SELECT count(*) FROM venta;  SELECT count(*) FROM renglon_venta;  SELECT count(*) FROM movimiento_stock;  → sin cambios
+#   Rayuela sigue en 8 y Bestiario en 1.
+# psql (invariante de D12, ver precondiciones): 0 filas
+# Consola: NINGÚN mensaje de comprobante para esta petición.
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": {{clienteAna}}, "renglones": [{"libro_id": {{libRayuela.response.body.$.id}}, "cantidad": 1}, {"libro_id": {{libBestiario.response.body.$.id}}, "cantidad": 2}]}
+
+### C-12a · Cliente inexistente → 409 sin escrituras
+# @no-cookie-jar
+# Esperado: 409 {"detail": "El cliente indicado no existe"}
+# psql (invariante de D12, ver precondiciones): 0 filas
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": 999999, "renglones": [{"libro_id": {{libRayuela.response.body.$.id}}, "cantidad": 1}]}
+
+### C-12b · Libro inexistente → 409 sin escrituras
+# @no-cookie-jar
+# Esperado: 409 (los libros [9999999] no existen o están dados de baja)
+# psql (invariante de D12, ver precondiciones): 0 filas
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": {{clienteAna}}, "renglones": [{"libro_id": 9999999, "cantidad": 1}]}
+
+### C-12c · Libro dado de baja → 409 sin escrituras (aunque el otro renglón sea válido)
+# @no-cookie-jar
+# Esperado: 409
+# psql (invariante de D12, ver precondiciones): 0 filas
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": {{clienteAna}}, "renglones": [{"libro_id": {{libRayuela.response.body.$.id}}, "cantidad": 1}, {"libro_id": {{libEfimero.response.body.$.id}}, "cantidad": 1}]}
+
+### V-01 · Precio en el cuerpo → 422
+# @no-cookie-jar
+# Esperado: 422
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": {{clienteAna}}, "renglones": [{"libro_id": {{libRayuela.response.body.$.id}}, "cantidad": 1, "precio_unitario": "1.00"}]}
+
+### V-02 · Renglones vacíos → 422
+# @no-cookie-jar
+# Esperado: 422
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": {{clienteAna}}, "renglones": []}
+
+### V-03 · Libro repetido → 422
+# @no-cookie-jar
+# Esperado: 422
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": {{clienteAna}}, "renglones": [{"libro_id": {{libRayuela.response.body.$.id}}, "cantidad": 1}, {"libro_id": {{libRayuela.response.body.$.id}}, "cantidad": 1}]}
+
+### V-04 · Cantidad 0 → 422
+# @no-cookie-jar
+# Esperado: 422
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": {{clienteAna}}, "renglones": [{"libro_id": {{libRayuela.response.body.$.id}}, "cantidad": 0}]}
+
+### V-05 · Las ventas no se modifican: PATCH → 405
+# @no-cookie-jar
+# Esperado: 405
+PATCH {{host}}/ventas/{{venta1.response.body.$.id}}
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"total": "1.00"}
+
+### V-06 · Segunda venta, para Bruno
+# @name venta2
+# @no-cookie-jar
+# Esperado: 201
+# psql (invariante de D12, ver precondiciones): 0 filas
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": {{clienteBruno}}, "renglones": [{"libro_id": {{libFicciones.response.body.$.id}}, "cantidad": 3}]}
+
+### V-07 · Listado de ventas del personal (envoltorio)
+# @no-cookie-jar
+# Esperado: 200 con 1 item {id, fecha, total, cliente}, total = cantidad de ventas
+GET {{host}}/ventas?size=1
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### V-08 · Ventas de Ana por cliente
+# @no-cookie-jar
+# Esperado: 200 con total 1 (la venta del C-10)
+GET {{host}}/clientes/{{clienteAna}}/ventas
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### V-09 · Una cliente no lista las ventas → 403
+# @no-cookie-jar
+# Esperado: 403 {"detail": "No tenés permiso para esta operación"}
+GET {{host}}/ventas
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+### V-10 · Una cliente no registra ventas → 403
+# @no-cookie-jar
+# Esperado: 403
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+{"cliente_id": {{clienteAna}}, "renglones": [{"libro_id": {{libRayuela.response.body.$.id}}, "cantidad": 1}]}
+
+# ============================================================================
+# C-06 (parte propia) · GET /ventas/{id} y /mis-ventas: personal o dueño
+# ============================================================================
+
+### C-06p · Ana ve su venta → 200
+# @no-cookie-jar
+# Esperado: 200 con la venta, sus renglones y los títulos
+GET {{host}}/ventas/{{venta1.response.body.$.id}}
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+### C-06q · Ana pide la venta de Bruno → 403 sin datos de la venta
+# @no-cookie-jar
+# Esperado: 403 {"detail": "No podés ver una venta de otro cliente"}
+GET {{host}}/ventas/{{venta2.response.body.$.id}}
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+### C-06r · El VENDEDOR ve cualquier venta → 200
+# @no-cookie-jar
+# Esperado: 200
+GET {{host}}/ventas/{{venta2.response.body.$.id}}
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### C-06s · Venta inexistente → 404
+# @no-cookie-jar
+# Esperado: 404
+GET {{host}}/ventas/99999999
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+### C-06t · Sin cookie → 401
+# Esperado: 401 {"detail": "No autenticado"}
+GET {{host}}/ventas/{{venta1.response.body.$.id}}
+
+### C-06u · /mis-ventas de Ana: solo la suya
+# @no-cookie-jar
+# Esperado: 200 con total 1 y ninguna venta de otro cliente
+GET {{host}}/mis-ventas
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+### C-06v · /mis-ventas del VENDEDOR (sin ficha de cliente) → página vacía
+# @no-cookie-jar
+# Esperado: 200 {"items": [], "total": 0, "page": 1, "size": 20, "pages": 1}
+GET {{host}}/mis-ventas
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### C-06w · /mis-ventas sin cookie → 401
+# Esperado: 401
+GET {{host}}/mis-ventas
+
+# ============================================================================
+# C-13 (parte ventas) · Una venta vieja sigue mostrando el título de un libro dado de baja
+# ============================================================================
+
+### C-13p · Venta de un libro que luego se dará de baja
+# @name venta3
+# @no-cookie-jar
+# Esperado: 201
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": {{clienteAna}}, "renglones": [{"libro_id": {{libAntologia.response.body.$.id}}, "cantidad": 1}]}
+
+### C-13q · Baja del libro vendido → 204
+# @no-cookie-jar
+# Esperado: 204
+DELETE {{host}}/libros/{{libAntologia.response.body.$.id}}
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-13r · El detalle de la venta vieja conserva el título
+# @no-cookie-jar
+# Esperado: 200 con "titulo": "c07.Antología"
+# psql (invariante de D12): 0 filas
+GET {{host}}/ventas/{{venta3.response.body.$.id}}
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+# ============================================================================
+# Desborde numérico del total (D10)
+# ============================================================================
+
+### D-01 · Libro muy caro con stock 200
+# @name libCaro
+# @no-cookie-jar
+# Esperado: 201
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c07-caro", "titulo": "c07.Caro", "precio": "99999999.99", "stock_inicial": 200, "editorial_id": {{refEditorial.response.body.$.id}}, "genero_id": {{refGenero.response.body.$.id}}, "autores": [{"autor_id": {{refAutor1.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### D-02 · 150 ejemplares: el total no entra en NUMERIC(12,2) → 409 propio, nunca 500
+# @no-cookie-jar
+# Esperado: 409 {"detail": "El valor supera el máximo permitido"}
+# psql: el stock de «c07.Caro» sigue en 200 y no hay venta nueva; invariante: 0 filas
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": {{clienteAna}}, "renglones": [{"libro_id": {{libCaro.response.body.$.id}}, "cantidad": 150}]}
+
+# ============================================================================
+# Concurrencia (D4, opcional; el PDF no la evalúa)
+# ============================================================================
+
+### K-01 · Dos ventas simultáneas del último ejemplar: una gana (201) y la otra recibe 409; el stock
+# nunca queda negativo y stock == SUM(movimientos). REST Client no manda pedidos en
+# paralelo: usar dos terminales (o un cliente con hilos) contra «c07.Bestiario» (stock 1):
+#   curl -s -X POST http://localhost:8000/ventas -H "Content-Type: application/json" \
+#        -H "Cookie: access_token=<token del vendedor>" \
+#        -d '{"cliente_id": <id>, "renglones": [{"libro_id": <Bestiario>, "cantidad": 1}]}' &
+#   (repetir el mismo comando a la vez)
+# Esperado: exactamente un 201 y el resto 409; SELECT stock FROM libro WHERE titulo = 'c07.Bestiario' → 0;
+# la consulta de la invariante devuelve 0 filas.
+# Por lectura: aplicar_movimiento (libros/repository.py) hace UPDATE ... SET stock = stock + :n
+# WHERE stock + :n >= 0; la base reevalúa la condición sobre el valor confirmado más reciente.
+GET {{host}}/health/live

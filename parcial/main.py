@@ -21,7 +21,8 @@ from app.modules.usuarios.router import (
     router_eventos,
     router_usuarios,
 )
-from app.modules.ventas.router import router as ventas_router
+from app.modules.ventas.router import router_autenticado as ventas_autenticado
+from app.modules.ventas.router import router_personal as ventas_personal
 
 
 @asynccontextmanager
@@ -77,7 +78,8 @@ protegido.include_router(libros.router_admin)
 protegido.include_router(router_usuarios)
 protegido.include_router(router_eventos)
 protegido.include_router(clientes_router)
-protegido.include_router(ventas_router)
+protegido.include_router(ventas_personal)
+protegido.include_router(ventas_autenticado)
 
 app.include_router(abierto)
 app.include_router(protegido)

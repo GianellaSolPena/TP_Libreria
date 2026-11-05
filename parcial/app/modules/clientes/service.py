@@ -1,85 +1,71 @@
-from fastapi import HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
-
+from app.core.errores import Conflicto, NoEncontrado, PaginaInexistente
+from app.core.paginacion import Pagina, calcular_offset, calcular_paginas
 from app.modules.clientes.models import Cliente, PerfilCliente
 from app.modules.clientes.schemas import ClienteCreate, ClienteUpdate, PerfilCreate
+from app.modules.clientes.unit_of_work import ClientesUnitOfWork
+from app.modules.ventas.models import Venta
 
-UNIQUE_VIOLATION = "23505"
-FOREIGN_KEY_VIOLATION = "23503"
-
-
-def _sqlstate(exc: IntegrityError) -> str | None:
-    return getattr(exc.orig, "sqlstate", None)
+CLIENTE_NO_ENCONTRADO = "Cliente no encontrado"
+CORREO_DE_CUENTA = "El correo de un cliente con cuenta no se puede cambiar"
 
 
-async def _guardar(session: AsyncSession, detalle_unico: str) -> None:
-    """Flush traduciendo el rechazo de la base a un error propio (RN-12)."""
-    try:
-        await session.flush()
-    except IntegrityError as exc:
-        await session.rollback()
-        sqlstate = _sqlstate(exc)
-        if sqlstate == UNIQUE_VIOLATION:
-            raise HTTPException(status.HTTP_409_CONFLICT, detalle_unico) from exc
-        if sqlstate == FOREIGN_KEY_VIOLATION:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Cliente no encontrado") from exc
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, "Los datos violan una restricción"
-        ) from exc
+async def crear(uow: ClientesUnitOfWork, datos: ClienteCreate) -> Cliente:
+    # Sin chequeo previo: la UNIQUE del correo rechaza el duplicado (RN-01).
+    async with uow:
+        cliente = await uow.clientes.add(Cliente(**datos.model_dump()))
+        return await uow.clientes.get_con_perfil(cliente.id)
 
 
-async def _leer(session: AsyncSession, cliente_id: int) -> Cliente | None:
-    # to-one -> joinedload
-    stmt = (
-        select(Cliente)
-        .where(Cliente.id == cliente_id)
-        .options(joinedload(Cliente.perfil))
-        .execution_options(populate_existing=True)
-    )
-    return (await session.execute(stmt)).unique().scalar_one_or_none()
+async def listar(uow: ClientesUnitOfWork, page: int, size: int) -> Pagina[Cliente]:
+    async with uow:
+        total = await uow.clientes.count()
+        pages = calcular_paginas(total, size)
+        if page > pages:
+            raise PaginaInexistente(page, pages)
+        items = await uow.clientes.listar_con_perfil(calcular_offset(page, size), size)
+        return Pagina[Cliente](items=items, total=total, page=page, size=size, pages=pages)
 
 
-async def crear(session: AsyncSession, datos: ClienteCreate) -> Cliente:
-    cliente = Cliente(**datos.model_dump())
-    session.add(cliente)
-    await _guardar(session, "Ya existe un cliente con ese email")
-    return await _leer(session, cliente.id)
+async def obtener(uow: ClientesUnitOfWork, cliente_id: int) -> Cliente:
+    async with uow:
+        cliente = await uow.clientes.get_con_perfil(cliente_id)
+        if cliente is None:
+            raise NoEncontrado(CLIENTE_NO_ENCONTRADO)
+        return cliente
 
 
-async def listar(session: AsyncSession, limit: int, offset: int) -> list[Cliente]:
-    stmt = (
-        select(Cliente)
-        .options(joinedload(Cliente.perfil))
-        .order_by(Cliente.id)
-        .limit(limit)
-        .offset(offset)
-    )
-    return list((await session.execute(stmt)).scalars().all())
-
-
-async def obtener(session: AsyncSession, cliente_id: int) -> Cliente:
-    cliente = await _leer(session, cliente_id)
-    if cliente is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Cliente no encontrado")
-    return cliente
-
-
-async def actualizar(session: AsyncSession, cliente_id: int, datos: ClienteUpdate) -> Cliente:
-    cliente = await obtener(session, cliente_id)
-    for campo, valor in datos.model_dump(exclude_unset=True).items():
-        setattr(cliente, campo, valor)
-    await _guardar(session, "Ya existe un cliente con ese email")
-    return cliente
+async def actualizar(uow: ClientesUnitOfWork, cliente_id: int, datos: ClienteUpdate) -> Cliente:
+    async with uow:
+        cliente = await uow.clientes.get_con_perfil(cliente_id)
+        if cliente is None:
+            raise NoEncontrado(CLIENTE_NO_ENCONTRADO)
+        cambios = datos.model_dump(exclude_unset=True)
+        # QA-12: el correo de un cliente con usuario es su credencial de login; no se cambia
+        # por aquí, así `cliente.email` y `usuario.email` nunca divergen.
+        if "email" in cambios and cliente.usuario_id is not None:
+            raise Conflicto(CORREO_DE_CUENTA)
+        return await uow.clientes.update(cliente, cambios)
 
 
 async def crear_perfil(
-    session: AsyncSession, cliente_id: int, datos: PerfilCreate
+    uow: ClientesUnitOfWork, cliente_id: int, datos: PerfilCreate
 ) -> PerfilCliente:
-    # Sin chequeo previo: la UNIQUE sobre cliente_id rechaza el segundo perfil (RN-09)
-    perfil = PerfilCliente(cliente_id=cliente_id, **datos.model_dump())
-    session.add(perfil)
-    await _guardar(session, "El cliente ya tiene un perfil")
-    return perfil
+    async with uow:
+        # La lectura es por el 404 del recurso de la ruta; la unicidad la garantiza la base.
+        if await uow.clientes.get_by_id(cliente_id) is None:
+            raise NoEncontrado(CLIENTE_NO_ENCONTRADO)
+        return await uow.perfiles.add(PerfilCliente(cliente_id=cliente_id, **datos.model_dump()))
+
+
+async def listar_ventas(
+    uow: ClientesUnitOfWork, cliente_id: int, page: int, size: int
+) -> Pagina[Venta]:
+    async with uow:
+        if await uow.clientes.get_by_id(cliente_id) is None:
+            raise NoEncontrado(CLIENTE_NO_ENCONTRADO)
+        total = await uow.ventas.contar(cliente_id)
+        pages = calcular_paginas(total, size)
+        if page > pages:
+            raise PaginaInexistente(page, pages)
+        items = await uow.ventas.listar(calcular_offset(page, size), size, cliente_id)
+        return Pagina[Venta](items=items, total=total, page=page, size=size, pages=pages)

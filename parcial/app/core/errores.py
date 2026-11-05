@@ -3,11 +3,13 @@ from contextlib import contextmanager
 from typing import Annotated
 
 from fastapi import HTTPException, Path, status
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 UNIQUE_VIOLATION = "23505"
 FOREIGN_KEY_VIOLATION = "23503"
+NUMERIC_VALUE_OUT_OF_RANGE = "22003"
 MENSAJE_GENERICO = "Los datos violan una restricción"
+MENSAJE_DESBORDE = "El valor supera el máximo permitido"
 
 # Ids de ruta: serial (>= 1) y dentro de int4 para no llegar a la base con un valor imposible.
 IdPath = Annotated[int, Path(ge=1, le=2_147_483_647)]
@@ -20,6 +22,12 @@ class NoEncontrado(Exception):
 
 
 class Conflicto(Exception):
+    def __init__(self, mensaje: str) -> None:
+        super().__init__(mensaje)
+        self.mensaje = mensaje
+
+
+class SinPermiso(Exception):
     def __init__(self, mensaje: str) -> None:
         super().__init__(mensaje)
         self.mensaje = mensaje
@@ -53,6 +61,8 @@ def traducir_errores(conflicto: str, conflicto_fk: str | None = None) -> Iterato
         raise HTTPException(status.HTTP_404_NOT_FOUND, exc.mensaje) from exc
     except Conflicto as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, exc.mensaje) from exc
+    except SinPermiso as exc:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, exc.mensaje) from exc
     except PaginaInexistente as exc:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -75,3 +85,9 @@ def traducir_errores(conflicto: str, conflicto_fk: str | None = None) -> Iterato
         else:
             detalle = MENSAJE_GENERICO
         raise HTTPException(status.HTTP_409_CONFLICT, detalle) from None
+    except DBAPIError as exc:
+        # IntegrityError ya se atendió arriba; de los demás solo el desborde numérico es del
+        # cliente (409). Cualquier otro error de la base se propaga (500 sin texto de la base).
+        if getattr(exc.orig, "sqlstate", None) != NUMERIC_VALUE_OUT_OF_RANGE:
+            raise
+        raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_DESBORDE) from None

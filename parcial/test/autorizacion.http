@@ -250,16 +250,16 @@ Content-Type: application/json
   "password": "{{passwordProvisoria}}"
 }
 
-### C-09g · Con el cambio pendiente: GET /ventas/ → 403 del cambio obligatorio
+### C-09g · Con el cambio pendiente: GET /ventas → 403 del cambio obligatorio
 # @no-cookie-jar
 # Esperado: 403 {"detail": "Tenés que cambiar la contraseña antes de seguir"}
-GET {{host}}/ventas/
+GET {{host}}/ventas
 Cookie: {{loginVendedor.response.headers.Set-Cookie}}
 
-### C-09h · GET /clientes/ → 403 del cambio obligatorio
+### C-09h · GET /clientes → 403 del cambio obligatorio
 # @no-cookie-jar
 # Esperado: 403 {"detail": "Tenés que cambiar la contraseña antes de seguir"}
-GET {{host}}/clientes/
+GET {{host}}/clientes
 Cookie: {{loginVendedor.response.headers.Set-Cookie}}
 
 ### C-09i · GET /auth/yo sí funciona (grupo abierto con sesión)
@@ -269,10 +269,10 @@ Cookie: {{loginVendedor.response.headers.Set-Cookie}}
 GET {{host}}/auth/yo
 Cookie: {{loginVendedor.response.headers.Set-Cookie}}
 
-### C-09j · GET /libros/ (público) → 200 aunque haya cambio pendiente
+### C-09j · GET /libros (público) → 200 aunque haya cambio pendiente
 # @no-cookie-jar
 # Esperado: 200 (lista de libros)
-GET {{host}}/libros/
+GET {{host}}/libros
 Cookie: {{loginVendedor.response.headers.Set-Cookie}}
 
 ### C-09k · Cambio de contraseña → 200
@@ -287,10 +287,10 @@ Cookie: {{loginVendedor.response.headers.Set-Cookie}}
   "password_nueva": "{{passwordVendedor}}"
 }
 
-### C-09l · La MISMA cookie ahora entra a GET /ventas/ → 200 (sin iniciar sesión de nuevo)
+### C-09l · La MISMA cookie ahora entra a GET /ventas → 200 (sin iniciar sesión de nuevo)
 # @no-cookie-jar
 # Esperado: 200 (lista de ventas)
-GET {{host}}/ventas/
+GET {{host}}/ventas
 Cookie: {{loginVendedor.response.headers.Set-Cookie}}
 
 ### C-09m · /auth/yo: debe_cambiar_password=false
@@ -300,29 +300,31 @@ GET {{host}}/auth/yo
 Cookie: {{loginVendedor.response.headers.Set-Cookie}}
 
 # ============================================================================
-# C-06 · 401 contra 403 (la parte «la cliente ve su venta» llega con C-07)
+# C-06 · 401 contra 403 («la cliente ve su venta» está en libros_clientes_ventas.http)
 # ============================================================================
 
-### C-06a · POST /libros/ sin cookie → 401
+### C-06a · POST /libros sin cookie → 401
 # Esperado: 401 {"detail": "No autenticado"}
-POST {{host}}/libros/
+POST {{host}}/libros
 Content-Type: application/json
 
 {"isbn": "authz-0001", "titulo": "authz.libro.sin.sesion", "precio": "10.00",
- "stock": 1, "editorial_id": 1, "autores": []}
+ "stock_inicial": 1, "editorial_id": 1,
+ "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
 
-### C-06b · POST /libros/ con la cookie del vendedor → 403 y no se crea el libro
+### C-06b · POST /libros con la cookie del vendedor → 403 y no se crea el libro
 # @no-cookie-jar
 # Esperado: 403 {"detail": "No tenés permiso para esta operación"}
 # psql: SELECT count(*) FROM libro WHERE titulo LIKE 'authz.%';  → 0
 # (el 403 sale antes que la validación del cuerpo: aunque el cuerpo tuviera un
 #  error, un VENDEDOR no llega a verlo.)
-POST {{host}}/libros/
+POST {{host}}/libros
 Content-Type: application/json
 Cookie: {{loginVendedor.response.headers.Set-Cookie}}
 
 {"isbn": "authz-0002", "titulo": "authz.libro.vendedor", "precio": "10.00",
- "stock": 1, "editorial_id": 1, "autores": []}
+ "stock_inicial": 1, "editorial_id": 1,
+ "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
 
 ### C-06c · POST /generos con la cookie de la cliente → 403 y no se crea el género
 # @no-cookie-jar
@@ -344,25 +346,25 @@ Cookie: {{loginVendedor.response.headers.Set-Cookie}}
 # Esperado: 401 {"detail": "No autenticado"}
 GET {{host}}/eventos
 
-### C-06f · GET /ventas/ con la cookie de ADMIN → 200 (el ADMIN también es personal)
+### C-06f · GET /ventas con la cookie de ADMIN → 200 (el ADMIN también es personal)
 # @no-cookie-jar
 # Esperado: 200
-GET {{host}}/ventas/
+GET {{host}}/ventas
 Cookie: {{loginAdmin.response.headers.Set-Cookie}}
 
-### C-06g · GET /ventas/ con la cookie de la cliente → 403
+### C-06g · GET /ventas con la cookie de la cliente → 403
 # @no-cookie-jar
 # Esperado: 403 {"detail": "No tenés permiso para esta operación"}
-GET {{host}}/ventas/
+GET {{host}}/ventas
 Cookie: {{loginCliente.response.headers.Set-Cookie}}
 
 ### C-06h · GET /editoriales sin cookie → 200 (catálogo público)
 # Esperado: 200 {"items": [...], "total": <n>, "page": 1, "size": 20, "pages": <n>}
 GET {{host}}/editoriales
 
-### C-06i · GET /libros/ sin cookie → 200
+### C-06i · GET /libros sin cookie → 200
 # Esperado: 200
-GET {{host}}/libros/
+GET {{host}}/libros
 
 # ============================================================================
 # C-07 · Revocar un rol con la sesión abierta; vencimientos inválidos
@@ -371,7 +373,7 @@ GET {{host}}/libros/
 ### C-07a · El vendedor (sesión abierta) ve las ventas
 # @no-cookie-jar
 # Esperado: 200
-GET {{host}}/ventas/
+GET {{host}}/ventas
 Cookie: {{loginVendedor.response.headers.Set-Cookie}}
 
 ### C-07b · El ADMIN revoca el rol VENDEDOR del vendedor
@@ -386,7 +388,7 @@ Cookie: {{loginAdmin.response.headers.Set-Cookie}}
 ### C-07c · La MISMA cookie del vendedor → 403 en la petición siguiente
 # @no-cookie-jar
 # Esperado: 403 {"detail": "No tenés permiso para esta operación"}
-GET {{host}}/ventas/
+GET {{host}}/ventas
 Cookie: {{loginVendedor.response.headers.Set-Cookie}}
 
 ### C-07d · /auth/yo del vendedor: los roles de la base ya no incluyen VENDEDOR; el token sí

@@ -3,7 +3,6 @@ from app.core.paginacion import Pagina, calcular_offset, calcular_paginas
 from app.modules.autores.models import Autor
 from app.modules.autores.schemas import AutorCreate, AutorUpdate
 from app.modules.autores.unit_of_work import AutoresUnitOfWork
-from app.modules.libros.models import LibroAutor
 
 
 async def crear(uow: AutoresUnitOfWork, datos: AutorCreate) -> Autor:
@@ -35,12 +34,3 @@ async def listar(uow: AutoresUnitOfWork, page: int, size: int) -> Pagina[Autor]:
             raise PaginaInexistente(page, pages)
         items = await uow.autores.get_all(offset=calcular_offset(page, size), limit=size)
         return Pagina[Autor](items=items, total=total, page=page, size=size, pages=pages)
-
-
-async def listar_libros(
-    uow: AutoresUnitOfWork, autor_id: int, limit: int, offset: int
-) -> list[LibroAutor]:
-    async with uow:
-        if await uow.autores.get_by_id(autor_id) is None:
-            raise NoEncontrado("Autor no encontrado")
-        return await uow.autores.listar_autorias(autor_id, offset, limit)

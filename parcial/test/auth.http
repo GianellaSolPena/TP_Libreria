@@ -106,7 +106,7 @@ Content-Type: application/json
 # Esperado: 201 {"id": <id>, "nombre": "Cliente sin usuario",
 #                "email": "cliente.libro.c02@example.com", "perfil": null}
 # (sin la cabecera Cookie → 401; con un CLIENTE → 403)
-POST {{host}}/clientes/
+POST {{host}}/clientes
 Content-Type: application/json
 Cookie: {{loginAdminAuth.response.headers.Set-Cookie}}
 

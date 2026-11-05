@@ -1,17 +1,18 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.core.dependencies import solo_admin
 from app.core.errores import IdPath, traducir_errores
 from app.core.paginacion import Pagina, PaginaDep
-from app.modules.libros import service as libros_service
-from app.modules.libros.schemas import LibroRead
 from app.modules.generos import service
 from app.modules.generos.schemas import GeneroCreate, GeneroRead, GeneroUpdate
 from app.modules.generos.unit_of_work import GenerosUnitOfWork
+from app.modules.libros import service as libros_service
+from app.modules.libros.schemas import LibroRead
+from app.modules.libros.unit_of_work import LibrosUnitOfWork
 
 # GET sin sesion (matriz de 03) y escrituras solo ADMIN: dos routers con el mismo prefijo.
 router_publico = APIRouter(prefix="/generos", tags=["generos"])
@@ -51,15 +52,15 @@ async def actualizar_genero(genero_id: IdPath, datos: GeneroUpdate, uow: UowDep)
         return await service.actualizar(uow, genero_id, datos)
 
 
-# TRANSITORIO (C-07): lista con libros.service y `get_session`; pasa al envoltorio y a la baja lógica en C-07.
-@router_publico.get("/{genero_id}/libros", response_model=list[LibroRead])
+def get_libros_uow(session: Annotated[AsyncSession, Depends(get_session)]) -> LibrosUnitOfWork:
+    return LibrosUnitOfWork(session)
+
+
+@router_publico.get("/{genero_id}/libros", response_model=Pagina[LibroRead])
 async def listar_libros_de_genero(
     genero_id: IdPath,
-    uow: UowDep,
-    session: Annotated[AsyncSession, Depends(get_session)],
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-) -> list[LibroRead]:
+    pagina: PaginaDep,
+    uow: Annotated[LibrosUnitOfWork, Depends(get_libros_uow)],
+) -> Pagina[LibroRead]:
     with traducir_errores(CONFLICTO):
-        await service.obtener(uow, genero_id)  # 404 si no existe
-    return await libros_service.listar(session, limit, offset, genero_id=genero_id)
+        return await libros_service.listar_por(uow, pagina.page, pagina.size, genero_id=genero_id)

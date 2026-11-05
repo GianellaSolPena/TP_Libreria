@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, Query, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_session_tp as get_session
+from app.core.database import get_session
 from app.core.dependencies import personal
+from app.core.errores import IdPath, traducir_errores
+from app.core.paginacion import Pagina, PaginaDep
 from app.modules.clientes import service
-from app.modules.ventas import service as ventas_service
-from app.modules.ventas.schemas import VentaRead
 from app.modules.clientes.schemas import (
     ClienteCreate,
     ClienteRead,
@@ -13,55 +15,55 @@ from app.modules.clientes.schemas import (
     PerfilCreate,
     PerfilRead,
 )
+from app.modules.clientes.unit_of_work import ClientesUnitOfWork
+from app.modules.ventas.schemas import VentaRead
 
 router = APIRouter(prefix="/clientes", tags=["clientes"], dependencies=[Depends(personal)])
 
-
-@router.post("/", response_model=ClienteRead, status_code=status.HTTP_201_CREATED)
-async def crear_cliente(
-    datos: ClienteCreate, session: AsyncSession = Depends(get_session)
-) -> ClienteRead:
-    return await service.crear(session, datos)
+CONFLICTO = "Ya existe un cliente con ese correo"
+CONFLICTO_PERFIL = "El cliente ya tiene un perfil"
 
 
-@router.get("/", response_model=list[ClienteRead])
-async def listar_clientes(
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    session: AsyncSession = Depends(get_session),
-) -> list[ClienteRead]:
-    return await service.listar(session, limit, offset)
+def get_uow(session: Annotated[AsyncSession, Depends(get_session)]) -> ClientesUnitOfWork:
+    return ClientesUnitOfWork(session)
+
+
+UowDep = Annotated[ClientesUnitOfWork, Depends(get_uow)]
+
+
+@router.post("", response_model=ClienteRead, status_code=status.HTTP_201_CREATED)
+async def crear_cliente(datos: ClienteCreate, uow: UowDep) -> ClienteRead:
+    with traducir_errores(CONFLICTO):
+        return await service.crear(uow, datos)
+
+
+@router.get("", response_model=Pagina[ClienteRead])
+async def listar_clientes(pagina: PaginaDep, uow: UowDep) -> Pagina[ClienteRead]:
+    with traducir_errores(CONFLICTO):
+        return await service.listar(uow, pagina.page, pagina.size)
 
 
 @router.get("/{cliente_id}", response_model=ClienteRead)
-async def obtener_cliente(
-    cliente_id: int, session: AsyncSession = Depends(get_session)
-) -> ClienteRead:
-    return await service.obtener(session, cliente_id)
+async def obtener_cliente(cliente_id: IdPath, uow: UowDep) -> ClienteRead:
+    with traducir_errores(CONFLICTO):
+        return await service.obtener(uow, cliente_id)
 
 
 @router.patch("/{cliente_id}", response_model=ClienteRead)
-async def actualizar_cliente(
-    cliente_id: int, datos: ClienteUpdate, session: AsyncSession = Depends(get_session)
-) -> ClienteRead:
-    return await service.actualizar(session, cliente_id, datos)
+async def actualizar_cliente(cliente_id: IdPath, datos: ClienteUpdate, uow: UowDep) -> ClienteRead:
+    with traducir_errores(CONFLICTO):
+        return await service.actualizar(uow, cliente_id, datos)
 
 
-@router.post(
-    "/{cliente_id}/perfil", response_model=PerfilRead, status_code=status.HTTP_201_CREATED
-)
-async def crear_perfil(
-    cliente_id: int, datos: PerfilCreate, session: AsyncSession = Depends(get_session)
-) -> PerfilRead:
-    return await service.crear_perfil(session, cliente_id, datos)
+@router.post("/{cliente_id}/perfil", response_model=PerfilRead, status_code=status.HTTP_201_CREATED)
+async def crear_perfil(cliente_id: IdPath, datos: PerfilCreate, uow: UowDep) -> PerfilRead:
+    with traducir_errores(CONFLICTO_PERFIL):
+        return await service.crear_perfil(uow, cliente_id, datos)
 
 
-@router.get("/{cliente_id}/ventas", response_model=list[VentaRead])
+@router.get("/{cliente_id}/ventas", response_model=Pagina[VentaRead])
 async def listar_ventas_de_cliente(
-    cliente_id: int,
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    session: AsyncSession = Depends(get_session),
-) -> list[VentaRead]:
-    await service.obtener(session, cliente_id)  # 404 si no existe
-    return await ventas_service.listar(session, limit, offset, cliente_id=cliente_id)
+    cliente_id: IdPath, pagina: PaginaDep, uow: UowDep
+) -> Pagina[VentaRead]:
+    with traducir_errores(CONFLICTO):
+        return await service.listar_ventas(uow, cliente_id, pagina.page, pagina.size)

@@ -1,21 +1,28 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Annotated
 
-from pydantic import AliasPath, ConfigDict, computed_field, model_validator
+from pydantic import AliasPath, BaseModel, ConfigDict, computed_field, model_validator
 from pydantic import Field as PydanticField
-from sqlmodel import Field, SQLModel
+
+INT4_MAX = 2**31 - 1
+IdInt4 = Annotated[int, PydanticField(ge=1, le=INT4_MAX)]
 
 
-class RenglonCreate(SQLModel):
-    libro_id: int
-    cantidad: int = Field(ge=1)
+class RenglonCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    libro_id: IdInt4
+    cantidad: int = PydanticField(ge=1, le=INT4_MAX)
 
 
-class VentaCreate(SQLModel):
+class VentaCreate(BaseModel):
     """No viajan precio, total ni fecha: los resuelve el servidor (RN-06, RN-07)."""
 
-    cliente_id: int
-    renglones: list[RenglonCreate] = Field(min_length=1)
+    model_config = ConfigDict(extra="forbid")
+
+    cliente_id: IdInt4
+    renglones: list[RenglonCreate] = PydanticField(min_length=1)
 
     @model_validator(mode="after")
     def _sin_libros_repetidos(self) -> "VentaCreate":
@@ -25,7 +32,7 @@ class VentaCreate(SQLModel):
         return self
 
 
-class ClienteResumen(SQLModel):
+class ClienteResumen(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -33,7 +40,7 @@ class ClienteResumen(SQLModel):
     email: str
 
 
-class RenglonRead(SQLModel):
+class RenglonRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     libro_id: int
@@ -47,7 +54,7 @@ class RenglonRead(SQLModel):
         return self.cantidad * self.precio_unitario
 
 
-class VentaRead(SQLModel):
+class VentaRead(BaseModel):
     """Listado: venta con su cliente."""
 
     model_config = ConfigDict(from_attributes=True)

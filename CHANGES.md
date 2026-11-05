@@ -105,7 +105,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 - **Leer antes**: `03` (matriz); `05` §Autorización, §Roles, §Eventos; `04` §asignacion_rol; `10` (Q-05, Q-12)
 
 ### [C-07] `libros-clientes-ventas`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completo (2026-11-05; pendiente de archivar)
 - **Scope**:
   - **Libros** (repos: libro sobre `SoftDeleteRepository`, `LibroAutor`, `MovimientoStock`): `POST /libros` con `autores` y `stock_inicial` (libro + autorías + "Stock inicial" en un bloque); `PATCH /libros/{id}` sólo título/precio (`stock` → 422); `DELETE` baja lógica 204; `POST /libros/{id}/reponer` (dado de baja → 409); `GET /libros/{id}/movimientos` (Q-18); reuso de ISBN tras la baja
   - **Punto único de escritura de stock** (alta, reposición, venta): actualiza `libro.stock` y agrega el movimiento con el `usuario_id` del actor

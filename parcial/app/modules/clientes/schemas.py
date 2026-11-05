@@ -1,17 +1,22 @@
 from typing import Annotated
 
-from pydantic import ConfigDict, StringConstraints, model_validator
-from sqlmodel import Field, SQLModel
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 Email = Annotated[str, StringConstraints(min_length=3, pattern=r"^[^@\s]+@[^@\s]+$")]
 
 
-class ClienteCreate(SQLModel):
+class ClienteCreate(BaseModel):
+    """`usuario_id` no viaja: el vínculo con un usuario sólo lo crea el registro (C-05)."""
+
+    model_config = ConfigDict(extra="forbid")
+
     nombre: str = Field(min_length=1)
     email: Email
 
 
-class ClienteUpdate(SQLModel):
+class ClienteUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     nombre: str | None = Field(default=None, min_length=1)
     email: Email | None = None
 
@@ -23,12 +28,14 @@ class ClienteUpdate(SQLModel):
         return self
 
 
-class PerfilCreate(SQLModel):
+class PerfilCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     telefono: str | None = None
     direccion: str | None = None
 
 
-class PerfilRead(SQLModel):
+class PerfilRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -37,7 +44,7 @@ class PerfilRead(SQLModel):
     direccion: str | None = None
 
 
-class ClienteRead(SQLModel):
+class ClienteRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
