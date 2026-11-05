@@ -93,7 +93,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 - **Leer antes**: `05` §Auth y §Límite de intentos; `07` §Registro y login; `08` §Seguridad; `10` (Q-04, Q-09, Q-11, Q-20)
 
 ### [C-06] `autorizacion-roles-eventos`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completo y archivado (2026-11-05)
 - **Scope**:
   - `app/core/dependencies.py`: `get_usuario_actual` (ya creada en C-05 con todo el 401; aquí sólo se amplía para cargar los roles vigentes en la misma lectura, D1), roles vigentes de `asignacion_rol` en cada petición, control del cambio obligatorio, `requiere_rol` (403); misma sesión que el UoW
   - Dos grupos de rutas en `main.py`: abierto (health, `/auth/*`, catálogo público) y protegido con el control del cambio obligatorio montado una vez; matriz de permisos de `03`
