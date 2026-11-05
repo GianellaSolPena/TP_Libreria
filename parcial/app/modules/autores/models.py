@@ -13,4 +13,6 @@ class Autor(SQLModel, table=True):
     nombre: str
     nacionalidad: str
 
-    autorias: list["LibroAutor"] = Relationship(back_populates="autor")
+    autorias: list["LibroAutor"] = Relationship(
+        back_populates="autor", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )

@@ -1,0 +1,244 @@
+@host = http://localhost:8000
+
+@emailAdmin = c08.admin@example.com
+@emailVendedor = c08.vendedor@example.com
+@passwordAdmin = adminpass123
+@passwordProvisoria = provisoria123
+@passwordVendedor = vendedor123
+
+# ============================================================================
+# C-15 · El detalle de una venta emite una cantidad FIJA de consultas
+#        (Ej. 8 del parcial; C-08 de la hoja de ruta; reemplaza a C-07_consultas_fijas.http)
+# ============================================================================
+# No depende de los ids del seed: crea sus propios datos de prueba (prefijo «c08.»)
+# y toma los ids de las respuestas.
+#
+# Precondiciones
+# 1) Base migrada y servidor arriba CON el eco de SQL (hace falta para contar):
+#      cd parcial
+#      alembic upgrade head
+#      SQL_ECHO=true uvicorn main:app          (PowerShell: $env:SQL_ECHO="true"; uvicorn main:app)
+#
+# 2) Datos de prueba de corridas anteriores: se identifican por el prefijo «c08.».
+#    Los movimientos de stock son solo agregado (disparador append-only): las filas con
+#    movimientos no se borran sin desactivar el disparador. Para repetir el caso usá
+#    otros emails/ISBN (p. ej. «c08.2.») o una base recién migrada.
+#
+# 3) Registrar al ADMIN (A-01) y darle el rol ADMIN por psql (ningún endpoint crea el
+#    primer ADMIN; en C-09 lo hace seed.py). Recién después, hacer su login (A-04):
+#      docker exec libreria-pg psql -U libreria -d libreria -c "
+#        INSERT INTO asignacion_rol (usuario_id, rol, desde)
+#          SELECT id, 'ADMIN', now() FROM usuario WHERE email = 'c08.admin@example.com';"
+#
+# Cómo contar: en la consola de uvicorn, entre dos líneas «INFO: ... HTTP/1.1» consecutivas
+# están las sentencias de UNA petición. Se cuentan las líneas «SELECT ...»
+# (BEGIN/COMMIT/ROLLBACK y las líneas de parámetros no cuentan).
+#
+# Los tres detalles (D-01, D-02 y D-04) se piden con el MISMO usuario (el VENDEDOR), porque
+# la cantidad depende de quién consulta: el personal emite 4 SELECT y la dueña de la venta 5.
+# Esperado en los tres: los mismos 4 SELECT, sin importar los renglones:
+#   1) usuario (autenticación)      2) roles vigentes del usuario
+#   3) venta + cliente (JOIN)       4) renglones + libro de cada renglón (IN + JOIN)
+
+# ============================================================================
+# Arranque
+# ============================================================================
+
+### A-01 · Registro del ADMIN (queda CLIENTE; el ADMIN se da por psql, paso 3)
+# @no-cookie-jar
+# Esperado: 201
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "nombre": "Admin C08", "password": "{{passwordAdmin}}"}
+
+# >>> Ahora ejecutá el paso 3 de las precondiciones (psql: rol ADMIN).
+# >>> Recién después hacé el login: el token lleva los roles del momento del login.
+
+### A-04 · Login del ADMIN
+# @name loginAdmin
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "password": "{{passwordAdmin}}"}
+
+### A-05 · Alta del VENDEDOR con contraseña provisoria
+# @name altaVendedor
+# @no-cookie-jar
+# Esperado: 201 {"id": <id>, ..., "debe_cambiar_password": true}
+POST {{host}}/usuarios
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"email": "{{emailVendedor}}", "nombre": "Vendedor C08", "password": "{{passwordProvisoria}}", "rol": "VENDEDOR"}
+
+### A-06 · Login del VENDEDOR con la provisoria
+# @name loginVendedor
+# @no-cookie-jar
+# Esperado: 200 {"debe_cambiar_password": true, ...}
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailVendedor}}", "password": "{{passwordProvisoria}}"}
+
+### A-07 · El VENDEDOR cambia su contraseña (la MISMA cookie queda al día)
+# @no-cookie-jar
+# Esperado: 200 {"mensaje": "Contraseña actualizada"}
+POST {{host}}/auth/cambiar-password
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"password_actual": "{{passwordProvisoria}}", "password_nueva": "{{passwordVendedor}}"}
+
+# ============================================================================
+# Datos de prueba: catálogo, un cliente y cuatro libros
+# ============================================================================
+
+### B-01 · Editorial de prueba
+# @name editorial
+# @no-cookie-jar
+# Esperado: 201 {"id": <id>, "nombre": "c08.Editorial", ...}
+POST {{host}}/editoriales
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"nombre": "c08.Editorial", "pais": "Argentina"}
+
+### B-02 · Género de prueba
+# @name genero
+# @no-cookie-jar
+# Esperado: 201 {"id": <id>, "nombre": "c08.Novela"}
+POST {{host}}/generos
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"nombre": "c08.Novela"}
+
+### B-03 · Autor de prueba
+# @name autor
+# @no-cookie-jar
+# Esperado: 201 {"id": <id>, "nombre": "c08.Autor", ...}
+POST {{host}}/autores
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"nombre": "c08.Autor", "nacionalidad": "Argentina"}
+
+### B-04 · Cliente de prueba (sin cuenta), dado de alta por el VENDEDOR
+# @name cliente
+# @no-cookie-jar
+# Esperado: 201 {"id": <id>, "nombre": "c08.Cliente", ...}
+POST {{host}}/clientes
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"nombre": "c08.Cliente", "email": "c08.cliente@example.com"}
+
+### B-05 · Libro 1 (stock 10)
+# @name libro1
+# @no-cookie-jar
+# Esperado: 201 {"id": <id>, "titulo": "c08.Libro uno", "stock": 10, ...}
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c08-lib-1", "titulo": "c08.Libro uno", "precio": "100.00", "stock_inicial": 10, "editorial_id": {{editorial.response.body.$.id}}, "genero_id": {{genero.response.body.$.id}}, "autores": [{"autor_id": {{autor.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### B-06 · Libro 2 (stock 10)
+# @name libro2
+# @no-cookie-jar
+# Esperado: 201 {"id": <id>, "titulo": "c08.Libro dos", "stock": 10, ...}
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c08-lib-2", "titulo": "c08.Libro dos", "precio": "200.00", "stock_inicial": 10, "editorial_id": {{editorial.response.body.$.id}}, "genero_id": {{genero.response.body.$.id}}, "autores": [{"autor_id": {{autor.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### B-07 · Libro 3 (stock 10)
+# @name libro3
+# @no-cookie-jar
+# Esperado: 201 {"id": <id>, "titulo": "c08.Libro tres", "stock": 10, ...}
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c08-lib-3", "titulo": "c08.Libro tres", "precio": "300.00", "stock_inicial": 10, "editorial_id": {{editorial.response.body.$.id}}, "genero_id": {{genero.response.body.$.id}}, "autores": [{"autor_id": {{autor.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+### B-08 · Libro 4 (stock 10)
+# @name libro4
+# @no-cookie-jar
+# Esperado: 201 {"id": <id>, "titulo": "c08.Libro cuatro", "stock": 10, ...}
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "c08-lib-4", "titulo": "c08.Libro cuatro", "precio": "400.00", "stock_inicial": 10, "editorial_id": {{editorial.response.body.$.id}}, "genero_id": {{genero.response.body.$.id}}, "autores": [{"autor_id": {{autor.response.body.$.id}}, "rol": "autor", "orden": 1}]}
+
+# ============================================================================
+# Ventas de 2 y de 4 renglones
+# ============================================================================
+
+### V-01 · Venta de 2 renglones (libros 1 y 2, cantidad 1)
+# @name venta2
+# @no-cookie-jar
+# Esperado: 201 {"id": <id>, "total": "300.00", "renglones": [2 renglones]}
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": {{cliente.response.body.$.id}}, "renglones": [{"libro_id": {{libro1.response.body.$.id}}, "cantidad": 1}, {"libro_id": {{libro2.response.body.$.id}}, "cantidad": 1}]}
+
+### V-02 · Venta de 4 renglones (libros 1 a 4, cantidad 1)
+# @name venta4
+# @no-cookie-jar
+# Esperado: 201 {"id": <id>, "total": "1000.00", "renglones": [4 renglones]}
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": {{cliente.response.body.$.id}}, "renglones": [{"libro_id": {{libro1.response.body.$.id}}, "cantidad": 1}, {"libro_id": {{libro2.response.body.$.id}}, "cantidad": 1}, {"libro_id": {{libro3.response.body.$.id}}, "cantidad": 1}, {"libro_id": {{libro4.response.body.$.id}}, "cantidad": 1}]}
+
+# ============================================================================
+# Detalles: misma cantidad de consultas con 2, con 4 renglones y tras una baja
+# ============================================================================
+
+### D-01 · Detalle de la venta de 2 renglones
+# @no-cookie-jar
+# Esperado: 200 con 2 renglones (títulos «c08.Libro uno» y «c08.Libro dos»).
+# Consola: 4 SELECT (usuario, roles vigentes, venta + cliente, renglones + libro). Anotar el número.
+GET {{host}}/ventas/{{venta2.response.body.$.id}}
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### D-02 · Detalle de la venta de 4 renglones (MISMO usuario que D-01)
+# @no-cookie-jar
+# Esperado: 200 con 4 renglones.
+# Consola: los MISMOS 4 SELECT que D-01 (la cantidad no crece con los renglones).
+GET {{host}}/ventas/{{venta4.response.body.$.id}}
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### D-03 · Baja del libro 1 (vendido en las dos ventas)
+# @no-cookie-jar
+# Esperado: 204 (baja lógica: el libro ya no figura en el catálogo)
+DELETE {{host}}/libros/{{libro1.response.body.$.id}}
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### D-04 · Detalle de la venta de 2 renglones tras la baja (MISMO usuario que D-01)
+# @no-cookie-jar
+# Esperado: 200 con 2 renglones; el renglón del libro dado de baja sigue mostrando el título «c08.Libro uno».
+# Consola: los MISMOS 4 SELECT que D-01 y D-02.
+GET {{host}}/ventas/{{venta2.response.body.$.id}}
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### D-05 · Catálogo: el libro dado de baja ya no figura (control de la baja)
+# Esperado: 200 con total 3 entre los libros «c08.» (filtrar por título)
+GET {{host}}/libros?titulo=c08.Libro
+
+# ============================================================================
+# Verificación del invariante de stock (psql; esperado: 0 filas)
+# ============================================================================
+#      SELECT l.id, l.stock, COALESCE(SUM(m.cantidad), 0) AS suma
+#        FROM libro l LEFT JOIN movimiento_stock m ON m.libro_id = l.id
+#       WHERE l.titulo LIKE 'c08.%'
+#       GROUP BY l.id HAVING l.stock <> COALESCE(SUM(m.cantidad), 0);

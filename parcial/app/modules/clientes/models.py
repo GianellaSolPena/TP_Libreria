@@ -20,9 +20,15 @@ class Cliente(SQLModel, table=True):
     email: str
     usuario_id: int | None = Field(default=None, foreign_key="usuario.id")
 
-    perfil: Optional["PerfilCliente"] = Relationship(back_populates="cliente")
-    ventas: list["Venta"] = Relationship(back_populates="cliente")
-    usuario: Optional["Usuario"] = Relationship(back_populates="cliente")
+    perfil: Optional["PerfilCliente"] = Relationship(
+        back_populates="cliente", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
+    ventas: list["Venta"] = Relationship(
+        back_populates="cliente", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
+    usuario: Optional["Usuario"] = Relationship(
+        back_populates="cliente", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
 
 
 class PerfilCliente(SQLModel, table=True):
@@ -34,4 +40,6 @@ class PerfilCliente(SQLModel, table=True):
     telefono: str | None = None
     direccion: str | None = None
 
-    cliente: Optional["Cliente"] = Relationship(back_populates="perfil")
+    cliente: Optional["Cliente"] = Relationship(
+        back_populates="perfil", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )

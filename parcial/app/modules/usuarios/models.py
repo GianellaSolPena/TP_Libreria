@@ -38,12 +38,14 @@ class Usuario(SQLModel, table=True):
 
     asignaciones: list["AsignacionRol"] = Relationship(
         back_populates="usuario",
-        sa_relationship_kwargs={"foreign_keys": "[AsignacionRol.usuario_id]"},
+        sa_relationship_kwargs={"foreign_keys": "[AsignacionRol.usuario_id]", "lazy": "raise_on_sql"},
     )
     cliente: Optional["Cliente"] = Relationship(
-        back_populates="usuario", sa_relationship_kwargs={"uselist": False}
+        back_populates="usuario", sa_relationship_kwargs={"uselist": False, "lazy": "raise_on_sql"}
     )
-    movimientos: list["MovimientoStock"] = Relationship(back_populates="usuario")
+    movimientos: list["MovimientoStock"] = Relationship(
+        back_populates="usuario", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
 
 
 class AsignacionRol(SQLModel, table=True):
@@ -72,7 +74,7 @@ class AsignacionRol(SQLModel, table=True):
 
     usuario: "Usuario" = Relationship(
         back_populates="asignaciones",
-        sa_relationship_kwargs={"foreign_keys": "[AsignacionRol.usuario_id]"},
+        sa_relationship_kwargs={"foreign_keys": "[AsignacionRol.usuario_id]", "lazy": "raise_on_sql"},
     )
 
 

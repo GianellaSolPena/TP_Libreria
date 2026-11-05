@@ -119,13 +119,14 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 - **Leer antes**: `05` §Stock, §Borrado lógico, §Ventas; `07` §Reposición y baja, §Venta; `04` §libro, movimiento_stock, cliente; `10` (Q-07, Q-08, Q-10, Q-18, Q-19)
 
 ### [C-08] `lecturas-sin-n1`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completo (2026-11-05; pendiente de archivar)
 - **Scope**:
   - Precarga dentro del método del repositorio; detalle de venta con cantidad fija de consultas (incluye libro dado de baja); ninguna carga perezosa
   - Repaso final: todos los listados paginados con total filtrado; búsqueda ligada; ningún 500 por entrada inválida (incluye ids fuera de `int4`); handlers `async def` sin llamadas bloqueantes; `grep` de `AsyncSession`/`commit(` en `service.py`/`router.py` vacío (salvo DD-09)
 - **Verificación**: caso C-15 con `SQL_ECHO=true` (misma cantidad de consultas con 2 y 4 renglones, salida a `parcial/evidencia/`); caso C-16
 - **Dependencias**: C-07 · **Governance**: MEDIO · **Ej.**: 8 (6), 3 (cierre)
 - **Leer antes**: `05` §Lecturas y §Paginación; `07` §Detalle de venta
+- **Notas de cierre (QA-03)**: C-08 dejó `parcial/test/C-15_detalle_consultas_fijas.http` y la evidencia `parcial/evidencia/C-15_consultas_detalle_venta.txt` sobre datos de prueba `c08.`; **C-09 regenera la evidencia C-15 tras `python seed.py` y retira `test/C-07_consultas_fijas.http` del TP**. Sin migración (sólo `lazy="raise_on_sql"` en los 26 `Relationship`).
 
 ### [C-09] `seed-casos-readme`
 - **Estado**: `[ ]` pendiente
@@ -173,7 +174,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 | C-05 | autenticacion | Ej.4 (14), Ej.7 | CRITICO | C-03, C-04 |
 | C-06 | autorizacion-roles-eventos | Ej.5 (12), Ej.7 | CRITICO | C-05 |
 | C-07 | libros-clientes-ventas | Ej.6 (16), Ej.3, Ej.5, Ej.8 | ALTO | C-03, C-04, C-06 |
-| C-08 | lecturas-sin-n1 | Ej.8 (6), Ej.3 (8) | MEDIO | C-07 |
+| C-08 | lecturas-sin-n1 `[x]` | Ej.8 (6), Ej.3 (8) | MEDIO | C-07 |
 | C-09 | seed-casos-readme | evidencia + entrega | BAJO | C-06, C-08 |
 | C-10 | despliegue-imagen | Ej.9 (11) | ALTO | C-01 |
 | C-11 | despliegue-vps | Ej.10 (7) | ALTO | C-10 (+ Q-02) |

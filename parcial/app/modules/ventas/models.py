@@ -22,9 +22,15 @@ class Venta(SQLModel, table=True):
     )
     total: Decimal = Field(default=Decimal("0"), sa_type=Numeric(12, 2))
 
-    cliente: Optional["Cliente"] = Relationship(back_populates="ventas")
-    renglones: list["RenglonVenta"] = Relationship(back_populates="venta")
-    movimientos: list["MovimientoStock"] = Relationship(back_populates="venta")
+    cliente: Optional["Cliente"] = Relationship(
+        back_populates="ventas", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
+    renglones: list["RenglonVenta"] = Relationship(
+        back_populates="venta", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
+    movimientos: list["MovimientoStock"] = Relationship(
+        back_populates="venta", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
 
 
 class RenglonVenta(SQLModel, table=True):
@@ -40,5 +46,9 @@ class RenglonVenta(SQLModel, table=True):
     cantidad: int
     precio_unitario: Decimal = Field(sa_type=Numeric(10, 2))
 
-    venta: Optional["Venta"] = Relationship(back_populates="renglones")
-    libro: Optional["Libro"] = Relationship(back_populates="renglones")
+    venta: Optional["Venta"] = Relationship(
+        back_populates="renglones", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
+    libro: Optional["Libro"] = Relationship(
+        back_populates="renglones", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )

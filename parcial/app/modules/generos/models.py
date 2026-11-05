@@ -12,4 +12,6 @@ class Genero(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     nombre: str = Field(unique=True)
 
-    libros: list["Libro"] = Relationship(back_populates="genero")
+    libros: list["Libro"] = Relationship(
+        back_populates="genero", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )

@@ -36,11 +36,21 @@ class Libro(SQLModel, table=True):
     editorial_id: int = Field(foreign_key="editorial.id", index=True)
     genero_id: int | None = Field(default=None, foreign_key="genero.id", index=True)
 
-    editorial: "Editorial" = Relationship(back_populates="libros")
-    genero: Optional["Genero"] = Relationship(back_populates="libros")
-    autorias: list["LibroAutor"] = Relationship(back_populates="libro")
-    renglones: list["RenglonVenta"] = Relationship(back_populates="libro")
-    movimientos: list["MovimientoStock"] = Relationship(back_populates="libro")
+    editorial: "Editorial" = Relationship(
+        back_populates="libros", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
+    genero: Optional["Genero"] = Relationship(
+        back_populates="libros", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
+    autorias: list["LibroAutor"] = Relationship(
+        back_populates="libro", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
+    renglones: list["RenglonVenta"] = Relationship(
+        back_populates="libro", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
+    movimientos: list["MovimientoStock"] = Relationship(
+        back_populates="libro", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
 
 
 class LibroAutor(SQLModel, table=True):
@@ -58,8 +68,12 @@ class LibroAutor(SQLModel, table=True):
     rol: str
     orden: int
 
-    libro: "Libro" = Relationship(back_populates="autorias")
-    autor: "Autor" = Relationship(back_populates="autorias")
+    libro: "Libro" = Relationship(
+        back_populates="autorias", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
+    autor: "Autor" = Relationship(
+        back_populates="autorias", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
 
 
 class MovimientoStock(SQLModel, table=True):
@@ -79,6 +93,12 @@ class MovimientoStock(SQLModel, table=True):
         sa_type=DateTime(timezone=True),
     )
 
-    libro: "Libro" = Relationship(back_populates="movimientos")
-    venta: Optional["Venta"] = Relationship(back_populates="movimientos")
-    usuario: "Usuario" = Relationship(back_populates="movimientos")
+    libro: "Libro" = Relationship(
+        back_populates="movimientos", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
+    venta: Optional["Venta"] = Relationship(
+        back_populates="movimientos", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
+    usuario: "Usuario" = Relationship(
+        back_populates="movimientos", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
