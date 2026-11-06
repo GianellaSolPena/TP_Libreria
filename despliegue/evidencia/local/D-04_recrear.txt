@@ -1,0 +1,23 @@
+== antes: crear una venta (queda en la base, id 2)
+POST /ventas/ -> HTTP 201
+== docker rm -f libreria
+libreria
+== mismo docker run
+c4b251841b36
+== docker ps
+libreria Up 40 seconds (healthy)
+libreria-pg-test Up 4 minutes
+== docker logs (sin 'Running upgrade')
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:36826 - "GET /health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50730 - "GET /health/ready HTTP/1.1" 200 OK
+lineas 'Running upgrade': 0
+== GET /libros/
+5 libros
+== GET /ventas/2 (venta de antes de recrear)
+id 2 total 77000.00

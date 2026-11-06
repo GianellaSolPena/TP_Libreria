@@ -1,0 +1,6 @@
+== docker exec libreria id
+uid=100(app) gid=101(app) groups=101(app)
+== docker exec libreria ps
+USER     PID   COMMAND
+app          1 {uvicorn} /usr/local/bin/python3.12 /usr/local/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+app         38 ps -o user,pid,args

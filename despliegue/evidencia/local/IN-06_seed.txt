@@ -1,0 +1,44 @@
+IN-06 carga de datos iniciales con psql (test/seed.sql)
+== (local, psql 17 sobre PostgreSQL 16, URI sin +asyncpg) primera carga
+(1 fila)
+
+ setval 
+--------
+      1
+(1 fila)
+
+COMMIT
+exit=0
+== conteos
+libro|5|5
+venta|1|1
+cliente|3|3
+== base sin migrar (libreria_vacia): debe fallar y no dejar filas
+CREATE DATABASE
+BEGIN
+psql:test/seed.sql:9: ERROR:  relation "renglon_venta" does not exist
+exit=3
+0
+
+######## 5.2 dentro del contenedor (imagen libreria, base libreria_despliegue en PostgreSQL 16)
+== docker exec libreria sh -c 'psql -v ON_ERROR_STOP=1 "$(echo "$DATABASE_URL" | sed "s/+asyncpg//")" -f test/seed.sql'
+exit=0
+== conteos tras el seed
+libros=5 ventas=1 max_venta_id=1 clientes=3 renglones=1
+== (curl desde el host) GET /libros/
+5 libros; ids [1, 2, 3, 4, 5]
+== GET /ventas/1 (total 18000.00)
+total 18000.00
+== POST /ventas/ (cuerpo del TP)
+HTTP 201
+== docker logs --tail 3 (aviso del comprobante DESPUES de la linea de la respuesta)
+INFO:     172.17.0.1:59528 - "GET /ventas/1 HTTP/1.1" 200 OK
+INFO:     172.17.0.1:59544 - "POST /ventas/ HTTP/1.1" 201 Created
+INFO:     app.modules.ventas.service - Comprobante de la venta 2 enviado
+== conteos tras la venta
+libros=5 ventas=2 max_venta_id=2 clientes=3 renglones=3
+== re-ejecucion del seed
+exit=0
+== conteos tras re-ejecutar (venta nueva desaparecida, mismos conteos e ids)
+libros=5 ventas=1 max_venta_id=1 clientes=3 renglones=1
+== GET /ventas/2 -> 404

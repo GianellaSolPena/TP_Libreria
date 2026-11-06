@@ -48,6 +48,13 @@ géneros, más clientes y ventas.
    psql -U <usuario> -d libreria -f test/seed.sql
    ```
 
+   Dentro del contenedor Docker (la imagen trae el cliente `psql`; se le quita `+asyncpg` a
+   `DATABASE_URL`):
+
+   ```bash
+   docker exec libreria sh -c 'psql -v ON_ERROR_STOP=1 "$(echo "$DATABASE_URL" | sed "s/+asyncpg//")" -f test/seed.sql'
+   ```
+
 5. **Levantar el servidor**
 
    ```bash
@@ -56,6 +63,10 @@ géneros, más clientes y ventas.
 
    - Documentación interactiva: <http://localhost:8000/docs>
    - Estado: `GET /health/live` (sin tocar la base) y `GET /health/ready` (ejecuta `SELECT 1`)
+
+## Docker
+
+La imagen y los comandos para construirla y correrla están en [DEPLOY.md](DEPLOY.md).
 
 ## Estructura
 

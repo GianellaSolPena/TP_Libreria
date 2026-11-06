@@ -1,0 +1,80 @@
+IN-07 completo: /health/ready con uvicorn local (sin Docker), PostgreSQL 16 en contenedor descartable
+== base arriba
+HTTP/1.1 200 OK
+date: Fri, 06 Nov 2026 13:41:56 GMT
+server: uvicorn
+content-length: 15
+content-type: application/json
+
+{"estado":"ok"}
+tiempo=0.046717s
+
+-- live
+HTTP/1.1 200 OK
+date: Fri, 06 Nov 2026 13:41:57 GMT
+server: uvicorn
+content-length: 17
+content-type: application/json
+
+{"estado":"vivo"}
+== detener PostgreSQL con uvicorn corriendo
+HTTP/1.1 503 Service Unavailable
+date: Fri, 06 Nov 2026 13:41:58 GMT
+server: uvicorn
+content-length: 26
+content-type: application/json
+
+{"estado":"no disponible"}
+tiempo=0.036440s
+
+-- live
+HTTP/1.1 200 OK
+date: Fri, 06 Nov 2026 13:41:58 GMT
+server: uvicorn
+content-length: 17
+content-type: application/json
+
+{"estado":"vivo"}
+== volver a iniciar PostgreSQL (sin reiniciar uvicorn)
+HTTP/1.1 200 OK
+date: Fri, 06 Nov 2026 13:42:04 GMT
+server: uvicorn
+content-length: 15
+content-type: application/json
+
+{"estado":"ok"}
+tiempo=0.043005s
+
+== puerto cerrado :5999
+HTTP/1.1 503 Service Unavailable
+date: Fri, 06 Nov 2026 13:32:10 GMT
+server: uvicorn
+content-length: 26
+content-type: application/json
+
+{"estado":"no disponible"}
+tiempo=2.143570s
+== live
+HTTP/1.1 200 OK
+date: Fri, 06 Nov 2026 13:32:13 GMT
+server: uvicorn
+content-length: 17
+content-type: application/json
+
+{"estado":"vivo"}== host inexistente
+HTTP/1.1 503 Service Unavailable
+date: Fri, 06 Nov 2026 13:32:24 GMT
+server: uvicorn
+content-length: 26
+content-type: application/json
+
+{"estado":"no disponible"}
+tiempo=0.141019s
+== live
+HTTP/1.1 200 OK
+date: Fri, 06 Nov 2026 13:32:24 GMT
+server: uvicorn
+content-length: 17
+content-type: application/json
+
+{"estado":"vivo"}

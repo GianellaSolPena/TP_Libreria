@@ -1,0 +1,31 @@
+== base vaciada (DROP SCHEMA public CASCADE; CREATE SCHEMA public)
+== docker run -d --name libreria -p 8000:8000 --restart unless-stopped --env-file <archivo fuera del repo> libreria
+2ea19d17f1d0
+== docker logs libreria
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, esquema inicial (todas las tablas menos genero)
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, agrega tabla genero y libro.genero_id
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+== docker ps (tras start-period)
+libreria Up 39 seconds (healthy)
+libreria-pg-test Up 2 minutes
+
+######## 5.4 healthcheck con la base caida (intervalo 30s, reintentos 3)
+== estado inicial: healthy
+== PostgreSQL detenido (10:46:15)
+t+10s: healthy (fallos: 0)
+t+20s: healthy (fallos: 1)
+t+30s: healthy (fallos: 1)
+t+40s: healthy (fallos: 1)
+t+50s: healthy (fallos: 2)
+t+60s: healthy (fallos: 2)
+t+70s: healthy (fallos: 2)
+t+80s: unhealthy (fallos: 3)
+== /health/live con la base caida: 200; /health/ready: 503
+== PostgreSQL iniciado (10:47:46)
+t+10s: unhealthy
+t+20s: healthy
