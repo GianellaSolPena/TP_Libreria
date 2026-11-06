@@ -8,6 +8,7 @@
 - **2026-11-03 — Plan reducido a lo básico del PDF**: sin pytest ni TDD (DD-01 reemplazada); las pruebas son las del PDF (`.http` con respuesta esperada en comentario + `test/solo_agregado.sql`) y la evidencia C-14/C-15 y D. Changes agrupados por ejercicio. Mapeo: antes C-01 → C-01; C-02 (infra pytest) → eliminado; C-03 → C-02; C-06+C-07 → C-03; C-04+C-05 → C-04; C-08+C-09 → C-05; C-10+C-11 → C-06; C-12+C-13+C-14 → C-07; C-15 → C-08; C-16+C-17+C-18 → C-09; C-19+C-20 → C-10; C-21 → C-11; C-22 → C-12.
 - **2026-11-03 — Auditoría contra el PDF** (`13_auditoria_vs_pdf.md`): correcciones de endpoints, modelo, RN y estructura incorporadas al scope de cada change (los ids de la auditoría son los anteriores; ver mapeo arriba).
 - **2026-11-06 — Auditoría post-entrega** (`informe-cumplimiento/index.html`, local): se agregan las correcciones F-01..F-04 (ver sección "Correcciones post-auditoría").
+- **2026-11-06 — Segunda auditoría** (ítems A-038/B-023 y A-090/B-100): se agrega F-05 `entradas-raras-y-repo-renglon` (sustitutos sueltos y NaN/Infinity/1e400 → 500; falta `RenglonVentaRepository`). F-02 y F-03 hechos (commits `01b887e`, `ccd5f81`; además `8b27348` rehízo la captura de C-14 y `afc173b` corrigió RN-02). F-04 (zip) lo hace el usuario a mano.
 
 ## Premisas (no negociables)
 1. `parcial/` es la copia del TP entregado (`e337710`) y se evoluciona ahí; la raíz del repo solo tiene planificación (el TP original se quitó el 2026-11-03; sigue en `e337710`). Comandos del parcial (alembic, uvicorn, seed) se corren desde `parcial/`.
@@ -165,7 +166,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 
 ---
 
-## Correcciones post-auditoría (F-01..F-04)
+## Correcciones post-auditoría (F-01..F-05)
 
 > **Auditoría 2026-11-06**: página local `informe-cumplimiento/index.html` (sin versionar, sólo en la máquina). 353 requisitos: **333 cumple / 5 parcial / 1 no cumple / 6 no verificable / 8 no aplica**. El arreglo de `/health/ready` y de los datos iniciales en `despliegue/` (IN-07/IN-06) está permitido explícitamente por el Ej. 9 ("corregir defectos propios del TP"): no requiere change. Los F-xx corrigen lo que quedó en no cumple / parcial / no verificable. **El zip entregable (`C:\Users\agusf\Desktop\Entrega_Parcial\`) no se toca hasta F-04**.
 
@@ -173,7 +174,8 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 F-01 entradas-invalidas-nul
 └── F-02 evidencia-casos-reproducible
 F-03 pulido-estructura-y-docs (en paralelo)
-F-04 re-empaquetado-zip (F-01..F-03; bloqueado hasta pedido explícito)
+F-04 re-empaquetado-zip (F-01..F-03; manual, lo hace el usuario)
+F-05 entradas-raras-y-repo-renglon (tras F-01..F-03; después el usuario rearma el zip a mano)
 ```
 
 ### [F-01] `entradas-invalidas-nul`
@@ -210,11 +212,24 @@ F-04 re-empaquetado-zip (F-01..F-03; bloqueado hasta pedido explícito)
 - **Leer antes**: consigna §Estructura obligatoria; `08` §Estructura; `12` §README y §DEPLOY.md
 
 ### [F-04] `re-empaquetado-zip`
-- **Estado**: `[ ]` **BLOQUEADO**: sólo cuando el usuario pida explícitamente rearmar el zip
+- **Estado**: manual: el zip lo arma el usuario a mano (fuera de OPSX). Tras F-05 hay que rearmarlo con `git archive` desde el commit nuevo (no comprimir carpetas: en la máquina hay `.env`, `.venv` y `__pycache__`)
 - **Scope**: igual que C-12: `git archive` desde el commit nuevo, verificación sobre el zip extraído (búsqueda de secretos, `alembic upgrade head` + `python seed.py`), el usuario aprueba la lista de entradas; después regenerar los estados de `informe-cumplimiento/`
 - **Verificación**: la de C-12 + SHA-256 nuevo anotado aquí
 - **Dependencias**: F-01, F-02, F-03 · **Governance**: ALTO (filtrar credenciales) · **Ej.**: requisito de entrega
 - **Leer antes**: C-12; `12` §Contenido del .zip; `10` (Q-01, Q-15)
+
+### [F-05] `entradas-raras-y-repo-renglon`
+- **Estado**: `[x]` completo (2026-11-06; implementado y verificado sobre una base descartable, sin commitear ni archivar todavía)
+- **Origen**: segunda auditoría (A-038, B-023: RN-15 parcial; A-090, B-100: Ej. 6 parcial)
+- **Scope** (sólo `parcial/`):
+  - RN-15 / Ej. 3 ("ninguna entrada inválida termina en un 500"): hoy dan 500 (a) un sustituto suelto (`"\ud800"` en JSON, o los bytes `ED A0 80`) en cualquier texto de un cuerpo (títulos, nombres, correo, contraseña, teléfono, incluso en una clave sobrante) y (b) los números JSON sin comillas `NaN`, `Infinity`, `-Infinity`, `1e400` en cualquier campo numérico (`precio`, `stock_inicial`, ids, `cantidad`). Dos mecanismos: el manejador por defecto del 422 repite la entrada (`input`/`ctx`) y no la puede serializar (UnicodeEncodeError / "Out of range float"), o el texto pasa el contrato y asyncpg no lo puede codificar (`DBAPIError` sin sqlstate)
+  - Arreglo en el contrato: `TextoSinNulo`/`Email` (`app/core/validacion.py`) rechazan también sustitutos sueltos; manejador propio de `RequestValidationError` que nunca repite entrada no serializable (misma forma `{"detail": [...]}` con `type`/`loc`/`msg`); red de seguridad en `app/core/errores.py` para el error de codificación de asyncpg → 422
+  - Ej. 6 ("cada entidad tiene su repositorio"): `RenglonVentaRepository` (`BaseRepository[RenglonVenta]`) en el UoW de ventas; `VentaService.crear` da de alta los renglones por él (un solo `flush`, mismo INSERT en lote), sin cambiar respuestas
+  - Casos `.http` nuevos con la respuesta esperada en comentario; README menciona los casos nuevos
+- **Verificación**: reproductores en un `postgres:16-alpine` descartable + uvicorn propio (nunca la base del usuario, el puerto 8000 ni un `.env`): todos 422; regresión de todos los `.http` (C-01..C-16, RN-02, RN-03, RN-15) y de `parcial/evidencia/`; `grep` de capas vacío; detalle de venta con número fijo de SELECT (2 y 4 renglones, `lazy="raise_on_sql"` sigue); `alembic check` sin diferencias (sin migración)
+- **Dependencias**: F-01, F-02, F-03 (hechos) · **Governance**: MEDIO · **Ej.**: 3 (RN-15), 6
+- **Después**: el usuario rearma el zip a mano (F-04) con `git archive` desde el commit nuevo
+- **Leer antes**: consigna Ej. 3, Ej. 6 y RN-16 de la tabla; `05` (RN-15); `parcial/app/core/validacion.py`, `errores.py`, `main.py`; `parcial/app/modules/ventas/`; `parcial/test/RN-15_caracter_nulo.http`; `parcial/evidencia/C-15_consultas_detalle_venta.txt`
 
 ---
 
@@ -237,8 +252,9 @@ F-04 re-empaquetado-zip (F-01..F-03; bloqueado hasta pedido explícito)
 | F-01 | entradas-invalidas-nul `[x]` | Ej.3 (RN-15) | MEDIO | — |
 | F-02 | evidencia-casos-reproducible `[x]` | evidencia | BAJO | F-01 |
 | F-03 | pulido-estructura-y-docs `[x]` | estructura + docs | BAJO | — |
-| F-04 | re-empaquetado-zip `[ ]` (bloqueado) | entrega | ALTO | F-01, F-02, F-03 |
+| F-04 | re-empaquetado-zip (manual, usuario) | entrega | ALTO | F-01, F-02, F-03 |
+| F-05 | entradas-raras-y-repo-renglon `[x]` | Ej.3 (RN-15), Ej.6 | MEDIO | F-01, F-02, F-03 |
 
 Rutas de `knowledge-base/` abreviadas por número (`05` = `knowledge-base/05_reglas_de_negocio.md`).
 
-**Próximo change**: `F-04 re-empaquetado-zip` (F-01, F-02 y F-03 hechos; **bloqueado** hasta pedido explícito de rearmar el zip).
+**Próximo change**: ninguno de OPSX (F-01..F-03 y F-05 hechos). Queda F-04: el usuario rearma el zip a mano con `git archive` desde el commit nuevo (F-05 dejó desactualizado el zip entregado).
