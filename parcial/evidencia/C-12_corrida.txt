@@ -1,0 +1,181 @@
+C-12 · Venta con libro/cliente inexistente o dado de baja -> 409
+================================================================
+
+Cómo se obtuvo (2026-11-06):
+  - Base: contenedor descartable postgres:16-alpine (PostgreSQL 16.15), sembrada con `python seed.py` justo antes de esta corrida.
+  - Python 3.13.15 del venv de parcial/; servidor `python -m uvicorn main:app --port 8001` (el 8000 lo ocupa otro proyecto); se usa 127.0.0.1 en vez de localhost porque en esta máquina localhost añade ~2 s por IPv6.
+  - Peticiones: las de parcial/test/C-12_venta_inexistentes_o_baja.http, sin modificarlo, ejecutadas en orden con un cliente HTTP temporal (httpx, no versionado) que
+    sustituye `@host` por http://127.0.0.1:8001, resuelve {{login*.response.headers.Set-Cookie}} (sólo la parte access_token=...) y
+    {{x.response.body.$.campo}}, y no guarda cookies entre peticiones (equivale a # @no-cookie-jar).
+  - El valor del JWT de las cookies se reemplazó por <jwt> (el resto de la respuesta va cruda).
+  - Cada petición muestra su comentario `# Esperado:` del .http, la petición enviada y la respuesta real.
+
+------------------------------------------------------------------------------
+Login del VENDEDOR
+# Esperado: 200
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "vendedor@example.com", "password": "vendedor1234"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 219 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+Login del ADMIN
+# Esperado: 200
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin1234"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 198 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+C-12a · Cliente inexistente (999)
+# Esperado: 409 {"detail": "El cliente indicado no existe"} (sin texto de la base ni 500)
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/ventas
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"cliente_id": 999, "renglones": [{"libro_id": 1, "cantidad": 1}]}
+
+<<< RESPUESTA
+HTTP 409  (tiempo: 10 ms)
+Content-Type: application/json
+
+{"detail":"El cliente indicado no existe"}
+
+------------------------------------------------------------------------------
+C-12b · Libro inexistente (999)
+# Esperado: 409 {"detail": "Los libros [999] no existen o están dados de baja"}
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/ventas
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"cliente_id": 2, "renglones": [{"libro_id": 999, "cantidad": 1}]}
+
+<<< RESPUESTA
+HTTP 409  (tiempo: 7 ms)
+Content-Type: application/json
+
+{"detail":"Los libros [999] no existen o están dados de baja"}
+
+------------------------------------------------------------------------------
+C-12c · El ADMIN da de baja Bestiario (libro 5)
+# Esperado: 204 (sin cuerpo)
+
+>>> PETICIÓN
+DELETE http://127.0.0.1:8001/libros/5
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 204  (tiempo: 8 ms)
+
+------------------------------------------------------------------------------
+C-12d · Venta con el libro dado de baja
+# Esperado: 409 {"detail": "Los libros [5] no existen o están dados de baja"}
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/ventas
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"cliente_id": 2, "renglones": [{"libro_id": 5, "cantidad": 1}]}
+
+<<< RESPUESTA
+HTTP 409  (tiempo: 8 ms)
+Content-Type: application/json
+
+{"detail":"Los libros [5] no existen o están dados de baja"}
+
+------------------------------------------------------------------------------
+C-12e · Mezcla: un libro válido y uno dado de baja (todo o nada)
+# Esperado: 409 (Rayuela tampoco se descuenta)
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/ventas
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"cliente_id": 2, "renglones": [{"libro_id": 1, "cantidad": 1}, {"libro_id": 5, "cantidad": 1}]}
+
+<<< RESPUESTA
+HTTP 409  (tiempo: 7 ms)
+Content-Type: application/json
+
+{"detail":"Los libros [5] no existen o están dados de baja"}
+
+------------------------------------------------------------------------------
+C-12f · No se creó ninguna venta
+# Esperado: 200 con "total": 1 (sólo la venta 1 del seed)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/ventas
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 9 ms)
+Content-Type: application/json
+
+{"items":[{"id":1,"fecha":"2026-10-01T15:00:00Z","total":"69000.00","cliente":{"id":1,"nombre":"Lucía Fernández","email":"lucia@example.com"}}],"total":1,"page":1,"size":20,"pages":1}
+
+------------------------------------------------------------------------------
+C-12g (extra) · Rayuela sigue en 10
+# Esperado: 200 con "stock": 10
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/libros/1
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 6 ms)
+Content-Type: application/json
+
+{"id":1,"isbn":"978-950-00-0001-1","titulo":"Rayuela","precio":"25000.00","stock":10,"editorial":{"id":1,"nombre":"Sudamericana","pais":"Argentina"},"genero":{"id":1,"nombre":"Novela"},"autorias":[{"autor":{"id":1,"nombre":"Julio Cortázar","nacionalidad":"Argentina"},"rol":"autor","orden":1}]}
+
+==============================================================================
+Comprobaciones en la base
+==============================================================================
+
+$ docker exec -i libreria-f02 psql -U libreria -d libreria -c "SELECT l.id, l.stock, COALESCE(SUM(m.cantidad), 0) AS suma, COUNT(m.id) AS movimientos FROM libro l LEFT JOIN movimiento_stock m ON m.libro_id = l.id GROUP BY l.id ORDER BY l.id;"
+ id | stock | suma | movimientos 
+----+-------+------+-------------
+  1 |    10 |   10 |           2
+  2 |     5 |    5 |           1
+  3 |     8 |    8 |           2
+  4 |     3 |    3 |           1
+  5 |     1 |    1 |           1
+(5 rows)
+
+
+$ docker exec -i libreria-f02 psql -U libreria -d libreria -c "SELECT count(*) AS movimientos_total FROM movimiento_stock;"
+ movimientos_total 
+-------------------
+                 7
+(1 row)
+
+
+$ docker exec -i libreria-f02 psql -U libreria -d libreria -c "SELECT count(*) AS ventas FROM venta;"
+ ventas 
+--------
+      1
+(1 row)
+
+Resultado: coincide con todos los # Esperado: (409 con mensaje propio en los tres casos y en la mezcla; 204 en la baja; sin venta nueva; Rayuela sigue en 10). En la base stock = suma en los cinco libros (el libro 5 sigue en la tabla, con borrado_en), 7 movimientos (ninguno nuevo) y 1 venta.

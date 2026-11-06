@@ -1,0 +1,180 @@
+C-13 · Reponer, dar de baja y reutilizar el ISBN
+================================================
+
+Cómo se obtuvo (2026-11-06):
+  - Base: contenedor descartable postgres:16-alpine (PostgreSQL 16.15), sembrada con `python seed.py` justo antes de esta corrida.
+  - Python 3.13.15 del venv de parcial/; servidor `python -m uvicorn main:app --port 8001` (el 8000 lo ocupa otro proyecto); se usa 127.0.0.1 en vez de localhost porque en esta máquina localhost añade ~2 s por IPv6.
+  - Peticiones: las de parcial/test/C-13_reponer_baja_reuso_isbn.http, sin modificarlo, ejecutadas en orden con un cliente HTTP temporal (httpx, no versionado) que
+    sustituye `@host` por http://127.0.0.1:8001, resuelve {{login*.response.headers.Set-Cookie}} (sólo la parte access_token=...) y
+    {{x.response.body.$.campo}}, y no guarda cookies entre peticiones (equivale a # @no-cookie-jar).
+  - El valor del JWT de las cookies se reemplazó por <jwt> (el resto de la respuesta va cruda).
+  - Cada petición muestra su comentario `# Esperado:` del .http, la petición enviada y la respuesta real.
+
+------------------------------------------------------------------------------
+Login del ADMIN
+# Esperado: 200
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin1234"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 206 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+C-13a · Reponer 5 ejemplares de Ficciones
+# Esperado: 200 {"libro": {"id": 3, "titulo": "Ficciones", "stock": 13, ...},
+#                "movimiento": {"cantidad": 5, "motivo": "Reposición", "venta_id": null, "usuario_id": 1, ...}}
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/libros/3/reponer
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"cantidad": 5}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 16 ms)
+Content-Type: application/json
+
+{"libro":{"id":3,"isbn":"978-950-00-0003-3","titulo":"Ficciones","precio":"22000.00","stock":13,"editorial":{"id":1,"nombre":"Sudamericana","pais":"Argentina"},"genero":{"id":2,"nombre":"Cuento"}},"movimiento":{"id":8,"cantidad":5,"motivo":"Reposición","cuando":"2026-11-06T17:02:30.505564Z","venta_id":null,"usuario_id":1}}
+
+------------------------------------------------------------------------------
+C-13b · Baja lógica de Ficciones
+# Esperado: 204 (sin cuerpo)
+
+>>> PETICIÓN
+DELETE http://127.0.0.1:8001/libros/3
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 204  (tiempo: 15 ms)
+
+------------------------------------------------------------------------------
+C-13c · Deja de aparecer en el catálogo
+# Esperado: 200 con "items": [] y "total": 0
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/libros?titulo=ficc
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"items":[],"total":0,"page":1,"size":20,"pages":1}
+
+------------------------------------------------------------------------------
+C-13d (extra) · Ni siquiera por id
+# Esperado: 404
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/libros/3
+
+<<< RESPUESTA
+HTTP 404  (tiempo: 27 ms)
+Content-Type: application/json
+
+{"detail":"Libro no encontrado"}
+
+------------------------------------------------------------------------------
+C-13e (extra) · No se puede reponer un libro dado de baja
+# Esperado: 409 {"detail": "No se puede reponer un libro dado de baja"}
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/libros/3/reponer
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"cantidad": 1}
+
+<<< RESPUESTA
+HTTP 409  (tiempo: 7 ms)
+Content-Type: application/json
+
+{"detail":"No se puede reponer un libro dado de baja"}
+
+------------------------------------------------------------------------------
+C-13f · Alta de OTRO libro con el mismo ISBN (el viejo está dado de baja)
+# Esperado: 201 con "id": 6, "isbn": "978-950-00-0003-3" y "stock": 4
+# (queda un único libro vigente con ese ISBN: índice único parcial)
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/libros
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"isbn": "978-950-00-0003-3", "titulo": "Ficciones (reedición)", "precio": "23000.00", "stock_inicial": 4, "editorial_id": 1, "genero_id": 2, "autores": [{"autor_id": 2, "rol": "autor", "orden": 1}]}
+
+<<< RESPUESTA
+HTTP 201  (tiempo: 23 ms)
+Content-Type: application/json
+
+{"id":6,"isbn":"978-950-00-0003-3","titulo":"Ficciones (reedición)","precio":"23000.00","stock":4,"editorial":{"id":1,"nombre":"Sudamericana","pais":"Argentina"},"genero":{"id":2,"nombre":"Cuento"},"autorias":[{"autor":{"id":2,"nombre":"Jorge Luis Borges","nacionalidad":"Argentina"},"rol":"autor","orden":1}]}
+
+------------------------------------------------------------------------------
+C-13g · Un SEGUNDO vigente con ese ISBN
+# Esperado: 409 {"detail": "Ya existe un libro vigente con ese ISBN"} (sin texto de la base ni 500)
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/libros
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"isbn": "978-950-00-0003-3", "titulo": "Otra copia", "precio": "23000.00", "stock_inicial": 1, "editorial_id": 1, "genero_id": 2, "autores": [{"autor_id": 2, "rol": "autor", "orden": 1}]}
+
+<<< RESPUESTA
+HTTP 409  (tiempo: 7 ms)
+Content-Type: application/json
+
+{"detail":"Ya existe un libro vigente con ese ISBN"}
+
+------------------------------------------------------------------------------
+C-13h · La venta vieja sigue mostrando el título «Ficciones»
+# Esperado: 200 con la venta 1: renglones Rayuela x1 a 25000.00 y «Ficciones» x2 a 22000.00,
+# total 69000.00 (el título y el precio vienen del renglón/libro dado de baja, no del nuevo)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/ventas/1
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 10 ms)
+Content-Type: application/json
+
+{"id":1,"fecha":"2026-10-01T15:00:00Z","total":"69000.00","cliente":{"id":1,"nombre":"Lucía Fernández","email":"lucia@example.com"},"renglones":[{"libro_id":1,"titulo":"Rayuela","cantidad":1,"precio_unitario":"25000.00","subtotal":"25000.00"},{"libro_id":3,"titulo":"Ficciones","cantidad":2,"precio_unitario":"22000.00","subtotal":"44000.00"}]}
+
+------------------------------------------------------------------------------
+C-13i (extra) · El libro nuevo sí aparece en el catálogo
+# Esperado: 200 con total 1: «Ficciones (reedición)», id 6
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/libros?titulo=ficc
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"items":[{"id":6,"isbn":"978-950-00-0003-3","titulo":"Ficciones (reedición)","precio":"23000.00","stock":4,"editorial":{"id":1,"nombre":"Sudamericana","pais":"Argentina"},"genero":{"id":2,"nombre":"Cuento"}}],"total":1,"page":1,"size":20,"pages":1}
+
+==============================================================================
+Comprobaciones en la base
+==============================================================================
+
+$ docker exec -i libreria-f02 psql -U libreria -d libreria -c "SELECT id, isbn, titulo, stock, borrado_en IS NOT NULL AS dado_de_baja FROM libro ORDER BY id;"
+ id |       isbn        |                titulo                 | stock | dado_de_baja 
+----+-------------------+---------------------------------------+-------+--------------
+  1 | 978-950-00-0001-1 | Rayuela                               |    10 | f
+  2 | 978-950-00-0002-8 | Antología de la literatura fantástica |     5 | f
+  3 | 978-950-00-0003-3 | Ficciones                             |    13 | t
+  4 | 978-950-00-0004-4 | Respiración artificial                |     3 | f
+  5 | 978-950-00-0005-5 | Bestiario                             |     1 | f
+  6 | 978-950-00-0003-3 | Ficciones (reedición)                 |     4 | f
+(6 rows)
+
+Resultado: coincide con todos los # Esperado: (reponer 200 con stock 13; baja 204; fuera del catálogo y 404 por id; reponer una baja 409; alta con el mismo ISBN 201 con id 6; segundo vigente 409; la venta 1 sigue mostrando «Ficciones»; el libro nuevo aparece). La consulta final es complementaria (el .http no define una): Ficciones (id 3) dado_de_baja = t y el id 6 vigente con el mismo ISBN.

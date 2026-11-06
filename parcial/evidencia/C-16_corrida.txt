@@ -1,0 +1,171 @@
+C-16 · Búsqueda segura, paginación y PATCH parcial
+==================================================
+
+Cómo se obtuvo (2026-11-06):
+  - Base: contenedor descartable postgres:16-alpine (PostgreSQL 16.15), sembrada con `python seed.py` justo antes de esta corrida.
+  - Python 3.13.15 del venv de parcial/; servidor `python -m uvicorn main:app --port 8001` (el 8000 lo ocupa otro proyecto); se usa 127.0.0.1 en vez de localhost porque en esta máquina localhost añade ~2 s por IPv6.
+  - Peticiones: las de parcial/test/C-16_busqueda_paginacion_patch.http, sin modificarlo, ejecutadas en orden con un cliente HTTP temporal (httpx, no versionado) que
+    sustituye `@host` por http://127.0.0.1:8001, resuelve {{login*.response.headers.Set-Cookie}} (sólo la parte access_token=...) y
+    {{x.response.body.$.campo}}, y no guarda cookies entre peticiones (equivale a # @no-cookie-jar).
+  - El valor del JWT de las cookies se reemplazó por <jwt> (el resto de la respuesta va cruda).
+  - Cada petición muestra su comentario `# Esperado:` del .http, la petición enviada y la respuesta real.
+
+------------------------------------------------------------------------------
+Login del ADMIN
+# Esperado: 200
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin1234"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 202 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+C-16a · Listado paginado del PDF (size=2)
+# Esperado: 200 con "total": 5, "page": 1, "size": 2, "pages": 3 y los libros 1 (Rayuela, 25000.00, stock 10)
+# y 2 (Antología de la literatura fantástica, 30000.00, stock 5)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/libros?size=2
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 6 ms)
+Content-Type: application/json
+
+{"items":[{"id":1,"isbn":"978-950-00-0001-1","titulo":"Rayuela","precio":"25000.00","stock":10,"editorial":{"id":1,"nombre":"Sudamericana","pais":"Argentina"},"genero":{"id":1,"nombre":"Novela"}},{"id":2,"isbn":"978-950-00-0002-8","titulo":"Antología de la literatura fantástica","precio":"30000.00","stock":5,"editorial":{"id":2,"nombre":"Alfaguara","pais":"España"},"genero":{"id":2,"nombre":"Cuento"}}],"total":5,"page":1,"size":2,"pages":3}
+
+------------------------------------------------------------------------------
+C-16b · Intento de inyección en la búsqueda: ' OR '1'='1
+# Esperado: 200 con "items": [] y "total": 0 (el texto se trata como dato, no como SQL)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/libros?titulo=%27%20OR%20%271%27%3D%271
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 6 ms)
+Content-Type: application/json
+
+{"items":[],"total":0,"page":1,"size":20,"pages":1}
+
+------------------------------------------------------------------------------
+C-16c · Búsqueda por título parcial, sin distinguir mayúsculas
+# Esperado: 200 con "total": 1, "pages": 1 y un único item: «Ficciones» (id 3)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/libros?titulo=ficc&size=1
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 19 ms)
+Content-Type: application/json
+
+{"items":[{"id":3,"isbn":"978-950-00-0003-3","titulo":"Ficciones","precio":"22000.00","stock":8,"editorial":{"id":1,"nombre":"Sudamericana","pais":"Argentina"},"genero":{"id":2,"nombre":"Cuento"}}],"total":1,"page":1,"size":1,"pages":1}
+
+------------------------------------------------------------------------------
+C-16d · Página que no existe
+# Esperado: 422 (la página 2 no existe: hay 1)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/libros?titulo=ficc&size=1&page=2
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 4 ms)
+Content-Type: application/json
+
+{"detail":"La página 2 no existe: hay 1"}
+
+------------------------------------------------------------------------------
+C-16e · size fuera del máximo (100)
+# Esperado: 422 (loc: ["query", "size"], less_than_equal)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/libros?size=500
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 12 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"less_than_equal","loc":["query","size"],"msg":"Input should be less than or equal to 100","input":"500","ctx":{"le":100}}]}
+
+------------------------------------------------------------------------------
+C-16f · PATCH parcial: sólo el precio
+# Esperado: 200 con "precio": "26000.00"; el título («Rayuela») y el stock (10) NO cambian
+
+>>> PETICIÓN
+PATCH http://127.0.0.1:8001/libros/1
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"precio": "26000.00"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 14 ms)
+Content-Type: application/json
+
+{"id":1,"isbn":"978-950-00-0001-1","titulo":"Rayuela","precio":"26000.00","stock":10,"editorial":{"id":1,"nombre":"Sudamericana","pais":"Argentina"},"genero":{"id":1,"nombre":"Novela"},"autorias":[{"autor":{"id":1,"nombre":"Julio Cortázar","nacionalidad":"Argentina"},"rol":"autor","orden":1}]}
+
+------------------------------------------------------------------------------
+C-16g · PATCH con un campo que no se puede modificar (stock)
+# Esperado: 422 (extra_forbidden en «stock»): el stock sólo cambia por movimientos
+
+>>> PETICIÓN
+PATCH http://127.0.0.1:8001/libros/1
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"stock": 99}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"extra_forbidden","loc":["body","stock"],"msg":"Extra inputs are not permitted","input":99}]}
+
+------------------------------------------------------------------------------
+C-16h · PATCH parcial de una editorial: sólo el país
+# Esperado: 200 con "pais": "Uruguay"; el nombre («Emecé») NO cambia
+
+>>> PETICIÓN
+PATCH http://127.0.0.1:8001/editoriales/3
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"pais": "Uruguay"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 9 ms)
+Content-Type: application/json
+
+{"id":3,"nombre":"Emecé","pais":"Uruguay"}
+
+------------------------------------------------------------------------------
+C-16i (extra) · Tras los PATCH, el libro 1 conserva todo lo demás
+# Esperado: 200 con precio "26000.00", titulo «Rayuela», stock 10 (el 99 no se aplicó)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/libros/1
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 23 ms)
+Content-Type: application/json
+
+{"id":1,"isbn":"978-950-00-0001-1","titulo":"Rayuela","precio":"26000.00","stock":10,"editorial":{"id":1,"nombre":"Sudamericana","pais":"Argentina"},"genero":{"id":1,"nombre":"Novela"},"autorias":[{"autor":{"id":1,"nombre":"Julio Cortázar","nacionalidad":"Argentina"},"rol":"autor","orden":1}]}
+
+==============================================================================
+Comprobaciones en la base
+==============================================================================
+
+$ docker exec -i libreria-f02 psql -U libreria -d libreria -c "SELECT id, titulo, precio, stock, editorial_id, genero_id FROM libro WHERE id IN (1,2) ORDER BY id;"
+ id |                titulo                 |  precio  | stock | editorial_id | genero_id 
+----+---------------------------------------+----------+-------+--------------+-----------
+  1 | Rayuela                               | 26000.00 |    10 |            1 |         1
+  2 | Antología de la literatura fantástica | 30000.00 |     5 |            2 |         2
+(2 rows)
+
+Resultado: coincide con todos los # Esperado: (total 5/pages 3; la inyección devuelve 0 resultados; 422 en página inexistente y en size=500; PATCH parcial de precio y de editorial sin tocar el resto; PATCH con stock 422). En la base el libro 1 quedó con precio 26000.00 y stock 10.

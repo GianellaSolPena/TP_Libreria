@@ -1,8 +1,8 @@
 C-14 · movimiento_stock es de solo agregado (disparador de la migración 0004).
-Cómo se obtuvo (2026-11-06): python seed.py; psql -U libreria -d libreria -v ON_ERROR_STOP=0 -f test/solo_agregado.sql   (PostgreSQL 17, salida completa stdout+stderr)
+Cómo se obtuvo (2026-11-06): python seed.py; psql -U libreria -d libreria -v ON_ERROR_STOP=0 -a -f test/solo_agregado.sql   (PostgreSQL 16.15, contenedor descartable postgres:16-alpine; el script se copió con docker cp a /test y se corrió con docker exec -w / libreria-f02 psql ...; salida completa stdout+stderr)
 Esperado: movimientos_antes = 7; INSERT permitido; ERROR en UPDATE y en DELETE; cantidad = 1 intacta; movimientos_despues = 7 (ROLLBACK).
 
-$ psql -U libreria -d libreria -v ON_ERROR_STOP=0 -f test/solo_agregado.sql
+$ psql -U libreria -d libreria -v ON_ERROR_STOP=0 -a -f test/solo_agregado.sql
 -- Caso C-14: movimiento_stock es de solo agregado (disparador de la migracion 0004).
 -- Uso: psql -v ON_ERROR_STOP=0 -f test/solo_agregado.sql
 -- Autocontenido: crea su propia fixture dentro de una transaccion y termina con ROLLBACK,
@@ -14,6 +14,7 @@ SELECT count(*) AS movimientos_antes FROM movimiento_stock;
 -------------------
                  7
 (1 row)
+
 -- Fixture propia (valores completos: no hay defaults en la base).
 INSERT INTO usuario (id, email, nombre, password_hash, activo, debe_cambiar_password)
 VALUES (900001, 'solo_agregado@prueba.local', 'Prueba', 'x', true, false);
@@ -54,6 +55,7 @@ SELECT id, cantidad FROM movimiento_stock WHERE id = 900001;
 --------+----------
  900001 |        1
 (1 row)
+
 ROLLBACK;
 ROLLBACK
 -- Tras el ROLLBACK la base queda como estaba. Esperado: mismo valor que movimientos_antes.
@@ -62,3 +64,4 @@ SELECT count(*) AS movimientos_despues FROM movimiento_stock;
 ---------------------
                    7
 (1 row)
+

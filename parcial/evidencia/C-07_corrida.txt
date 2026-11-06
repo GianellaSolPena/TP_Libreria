@@ -1,0 +1,195 @@
+C-07 · Revocar un rol con la sesión abierta -> 403 en la petición siguiente
+===========================================================================
+
+Cómo se obtuvo (2026-11-06):
+  - Base: contenedor descartable postgres:16-alpine (PostgreSQL 16.15), sembrada con `python seed.py` justo antes de esta corrida.
+  - Python 3.13.15 del venv de parcial/; servidor `python -m uvicorn main:app --port 8001` (el 8000 lo ocupa otro proyecto); se usa 127.0.0.1 en vez de localhost porque en esta máquina localhost añade ~2 s por IPv6.
+  - Peticiones: las de parcial/test/C-07_revocar_rol_sesion_abierta.http, sin modificarlo, ejecutadas en orden con un cliente HTTP temporal (httpx, no versionado) que
+    sustituye `@host` por http://127.0.0.1:8001, resuelve {{login*.response.headers.Set-Cookie}} (sólo la parte access_token=...) y
+    {{x.response.body.$.campo}}, y no guarda cookies entre peticiones (equivale a # @no-cookie-jar).
+  - El valor del JWT de las cookies se reemplazó por <jwt> (el resto de la respuesta va cruda).
+  - Cada petición muestra su comentario `# Esperado:` del .http, la petición enviada y la respuesta real.
+
+------------------------------------------------------------------------------
+Login del ADMIN
+# Esperado: 200
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin1234"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 214 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+Login del VENDEDOR (el token queda con roles_token = ["VENDEDOR"])
+# Esperado: 200
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "vendedor@example.com", "password": "vendedor1234"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 227 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+C-07a · El VENDEDOR lista ventas (todavía tiene el rol)
+# Esperado: 200 (total 1: la venta 1 del seed)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/ventas
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 9 ms)
+Content-Type: application/json
+
+{"items":[{"id":1,"fecha":"2026-10-01T15:00:00Z","total":"69000.00","cliente":{"id":1,"nombre":"Lucía Fernández","email":"lucia@example.com"}}],"total":1,"page":1,"size":20,"pages":1}
+
+------------------------------------------------------------------------------
+C-07b · El ADMIN revoca el rol VENDEDOR del usuario 3
+# Esperado: 200 {"id": ..., "usuario_id": 3, "rol": "VENDEDOR", "revocada_en": "<fecha>",
+#                "vigente": false, ...}
+
+>>> PETICIÓN
+DELETE http://127.0.0.1:8001/usuarios/3/roles/VENDEDOR
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 12 ms)
+Content-Type: application/json
+
+{"id":3,"usuario_id":3,"rol":"VENDEDOR","desde":"2026-11-06T17:02:07.222729Z","vence_en":null,"revocada_en":"2026-11-06T17:02:08.744790Z","otorgada_por":null,"vigente":false}
+
+------------------------------------------------------------------------------
+C-07c · El VENDEDOR repite la petición con la MISMA cookie
+# Esperado: 403. El token todavía dice VENDEDOR, pero se autoriza con los roles vigentes de la base.
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/ventas
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 403  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"detail":"No tenés permiso para esta operación"}
+
+------------------------------------------------------------------------------
+C-07d · /auth/yo muestra la diferencia entre token y base
+# Esperado: 200 {"usuario": {"email": "vendedor@example.com", ...},
+#                "roles_vigentes": [], "roles_token": ["VENDEDOR"]}
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/auth/yo
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 6 ms)
+Content-Type: application/json
+
+{"usuario":{"id":3,"email":"vendedor@example.com","nombre":"Vendedor","activo":true,"debe_cambiar_password":false},"roles_vigentes":[],"roles_token":["VENDEDOR"]}
+
+------------------------------------------------------------------------------
+C-07e · La fila revocada sigue en el historial de roles
+# Esperado: 200 con una asignación VENDEDOR con "revocada_en" no nulo y "vigente": false
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/usuarios/3/roles
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 20 ms)
+Content-Type: application/json
+
+[{"id":3,"usuario_id":3,"rol":"VENDEDOR","desde":"2026-11-06T17:02:07.222729Z","vence_en":null,"revocada_en":"2026-11-06T17:02:08.744790Z","otorgada_por":null,"vigente":false}]
+
+------------------------------------------------------------------------------
+C-07f · Asignar un rol con vencimiento en el PASADO
+# Esperado: 422 (vence_en debe ser una fecha futura)
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/usuarios/3/roles
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"rol": "VENDEDOR", "vence_en": "2020-01-01T00:00:00Z"}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"value_error","loc":["body","vence_en"],"msg":"Value error, vence_en debe ser una fecha futura","input":"2020-01-01T00:00:00Z","ctx":{"error":{}}}]}
+
+------------------------------------------------------------------------------
+C-07g · Asignar un rol con vencimiento SIN zona horaria
+# Esperado: 422 (la fecha debe incluir zona horaria)
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/usuarios/3/roles
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"rol": "VENDEDOR", "vence_en": "2099-01-01T00:00:00"}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 7 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"timezone_aware","loc":["body","vence_en"],"msg":"Input should have timezone info","input":"2099-01-01T00:00:00"}]}
+
+------------------------------------------------------------------------------
+C-07h (extra) · Volver a dar el rol con vencimiento futuro: el VENDEDOR vuelve a entrar
+# Esperado: 201 {"rol": "VENDEDOR", "vence_en": "2099-01-01T00:00:00Z", "vigente": true, ...}
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/usuarios/3/roles
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"rol": "VENDEDOR", "vence_en": "2099-01-01T00:00:00Z"}
+
+<<< RESPUESTA
+HTTP 201  (tiempo: 22 ms)
+Content-Type: application/json
+
+{"id":6,"usuario_id":3,"rol":"VENDEDOR","desde":"2026-11-06T17:02:09.659029Z","vence_en":"2099-01-01T00:00:00Z","revocada_en":null,"otorgada_por":1,"vigente":true}
+
+------------------------------------------------------------------------------
+C-07i (extra) · Con la MISMA cookie del vendedor, otra vez 200
+# Esperado: 200 (el rol volvió a estar vigente; no hizo falta un nuevo login)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/ventas
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 16 ms)
+Content-Type: application/json
+
+{"items":[{"id":1,"fecha":"2026-10-01T15:00:00Z","total":"69000.00","cliente":{"id":1,"nombre":"Lucía Fernández","email":"lucia@example.com"}}],"total":1,"page":1,"size":20,"pages":1}
+
+==============================================================================
+Comprobaciones en la base
+==============================================================================
+
+$ docker exec -i libreria-f02 psql -U libreria -d libreria -c "SELECT usuario_id, rol, desde, revocada_en FROM asignacion_rol WHERE usuario_id = 3 ORDER BY id;"
+ usuario_id |   rol    |             desde             |         revocada_en          
+------------+----------+-------------------------------+------------------------------
+          3 | VENDEDOR | 2026-11-06 17:02:07.222729+00 | 2026-11-06 17:02:08.74479+00
+          3 | VENDEDOR | 2026-11-06 17:02:09.659029+00 | 
+(2 rows)
+
+Resultado: coincide con todos los # Esperado: (200, revocación con vigente=false, 403 con la misma cookie, /auth/yo con roles_vigentes [] y roles_token [VENDEDOR], 422 en los dos vencimientos inválidos, 201 al volver a asignar, 200 otra vez). La consulta se ejecutó tras C-07h, por eso muestra las 2 filas previstas para ese momento (la revocada y la nueva abierta).

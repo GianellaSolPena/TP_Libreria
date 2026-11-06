@@ -1,0 +1,160 @@
+C-05 · Límite de intentos de login -> 429 con Retry-After
+=========================================================
+
+Cómo se obtuvo (2026-11-06):
+  - Base: contenedor descartable postgres:16-alpine (PostgreSQL 16.15), sembrada con `python seed.py` justo antes de esta corrida.
+  - Python 3.13.15 del venv de parcial/; servidor `python -m uvicorn main:app --port 8001` (el 8000 lo ocupa otro proyecto); se usa 127.0.0.1 en vez de localhost porque en esta máquina localhost añade ~2 s por IPv6.
+  - Peticiones: las de parcial/test/C-05_limite_intentos.http, sin modificarlo, ejecutadas en orden con un cliente HTTP temporal (httpx, no versionado) que
+    sustituye `@host` por http://127.0.0.1:8001, resuelve {{login*.response.headers.Set-Cookie}} (sólo la parte access_token=...) y
+    {{x.response.body.$.campo}}, y no guarda cookies entre peticiones (equivale a # @no-cookie-jar).
+  - El valor del JWT de las cookies se reemplazó por <jwt> (el resto de la respuesta va cruda).
+  - Cada petición muestra su comentario `# Esperado:` del .http, la petición enviada y la respuesta real.
+
+------------------------------------------------------------------------------
+C-05-1 · Fallo 1 de 5
+# Esperado: 401 {"detail": "Correo o contraseña incorrectos"}
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin2@example.com", "password": "contraseña-incorrecta"}
+
+<<< RESPUESTA
+HTTP 401  (tiempo: 198 ms)
+Content-Type: application/json
+
+{"detail":"Correo o contraseña incorrectos"}
+
+------------------------------------------------------------------------------
+C-05-2 · Fallo 2 de 5
+# Esperado: 401
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin2@example.com", "password": "contraseña-incorrecta"}
+
+<<< RESPUESTA
+HTTP 401  (tiempo: 201 ms)
+Content-Type: application/json
+
+{"detail":"Correo o contraseña incorrectos"}
+
+------------------------------------------------------------------------------
+C-05-3 · Fallo 3 de 5
+# Esperado: 401
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin2@example.com", "password": "contraseña-incorrecta"}
+
+<<< RESPUESTA
+HTTP 401  (tiempo: 195 ms)
+Content-Type: application/json
+
+{"detail":"Correo o contraseña incorrectos"}
+
+------------------------------------------------------------------------------
+C-05-4 · Fallo 4 de 5
+# Esperado: 401
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin2@example.com", "password": "contraseña-incorrecta"}
+
+<<< RESPUESTA
+HTTP 401  (tiempo: 206 ms)
+Content-Type: application/json
+
+{"detail":"Correo o contraseña incorrectos"}
+
+------------------------------------------------------------------------------
+C-05-5 · Fallo 5 de 5
+# Esperado: 401
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin2@example.com", "password": "contraseña-incorrecta"}
+
+<<< RESPUESTA
+HTTP 401  (tiempo: 204 ms)
+Content-Type: application/json
+
+{"detail":"Correo o contraseña incorrectos"}
+
+------------------------------------------------------------------------------
+C-05-6 · Sexto intento: BLOQUEADO
+# Esperado: 429 {"detail": "Demasiados intentos fallidos; probá de nuevo más tarde"}
+# con el encabezado Retry-After: <segundos que faltan, ≤ 60>.
+# Responde en pocos milisegundos: no gasta una verificación bcrypt.
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin2@example.com", "password": "contraseña-incorrecta"}
+
+<<< RESPUESTA
+HTTP 429  (tiempo: 4 ms)
+Content-Type: application/json
+Retry-After: 59
+
+{"detail":"Demasiados intentos fallidos; probá de nuevo más tarde"}
+
+------------------------------------------------------------------------------
+C-05-7 (extra) · Durante el bloqueo, ni la contraseña CORRECTA entra
+# Esperado: 429 con Retry-After (el bloqueo es por correo+IP, no depende de la contraseña)
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin2@example.com", "password": "admin21234"}
+
+<<< RESPUESTA
+HTTP 429  (tiempo: 10 ms)
+Content-Type: application/json
+Retry-After: 59
+
+{"detail":"Demasiados intentos fallidos; probá de nuevo más tarde"}
+
+------------------------------------------------------------------------------
+C-05-8 (extra) · Otro correo no está bloqueado
+# Esperado: 200 (el límite es por correo + IP)
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin1234"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 201 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+==============================================================================
+Comprobaciones en la base
+==============================================================================
+
+$ docker exec -i libreria-f02 psql -U libreria -d libreria -c "SELECT email, ip, exito FROM intento_acceso WHERE email = 'admin2@example.com' ORDER BY id;"
+       email        |    ip     | exito 
+--------------------+-----------+-------
+ admin2@example.com | 127.0.0.1 | f
+ admin2@example.com | 127.0.0.1 | f
+ admin2@example.com | 127.0.0.1 | f
+ admin2@example.com | 127.0.0.1 | f
+ admin2@example.com | 127.0.0.1 | f
+(5 rows)
+
+Resultado: coincide con todos los # Esperado: (cinco 401 con el mismo mensaje, ~200 ms c/u; el sexto intento y el séptimo con la clave correcta dan 429 con Retry-After <= 60, respondidos en 4 y 10 ms sin verificar bcrypt; otro correo entra con 200) y intento_acceso tiene exactamente los 5 fallos (exito = f, misma ip).

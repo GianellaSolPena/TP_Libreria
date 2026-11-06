@@ -1,0 +1,140 @@
+RN-15 · Carácter NUL en la entrada -> 422
+=========================================
+
+Cómo se obtuvo (2026-11-06):
+  - Base: contenedor descartable postgres:16-alpine (PostgreSQL 16.15), sembrada con `python seed.py` justo antes de esta corrida.
+  - Python 3.13.15 del venv de parcial/; servidor `python -m uvicorn main:app --port 8001` (el 8000 lo ocupa otro proyecto); se usa 127.0.0.1 en vez de localhost porque en esta máquina localhost añade ~2 s por IPv6.
+  - Peticiones: las de parcial/test/RN-15_caracter_nulo.http, sin modificarlo, ejecutadas en orden con un cliente HTTP temporal (httpx, no versionado) que
+    sustituye `@host` por http://127.0.0.1:8001, resuelve {{login*.response.headers.Set-Cookie}} (sólo la parte access_token=...) y
+    {{x.response.body.$.campo}}, y no guarda cookies entre peticiones (equivale a # @no-cookie-jar).
+  - El valor del JWT de las cookies se reemplazó por <jwt> (el resto de la respuesta va cruda).
+  - Cada petición muestra su comentario `# Esperado:` del .http, la petición enviada y la respuesta real.
+
+------------------------------------------------------------------------------
+RN-15a · Búsqueda de libros con U+0000 en el título (ruta pública)
+# Esperado: 422 con {"detail": [{"type": "value_error", "loc": ["query", "titulo"], ...}]}
+# Antes del arreglo era 500.
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/libros?titulo=a%00b
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 4 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"value_error","loc":["query","titulo"],"msg":"Value error, El texto no puede contener el carácter nulo (U+0000)","input":"a\u0000b","ctx":{"error":{}}}]}
+
+------------------------------------------------------------------------------
+RN-15b · Login con U+0000 en el correo
+# Esperado: 422 (loc: ["body", "email"]). No cuenta como intento fallido. Antes era 500.
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin\u0000@example.com", "password": "admin1234"}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 24 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"value_error","loc":["body","email"],"msg":"Value error, El texto no puede contener el carácter nulo (U+0000)","input":"admin\u0000@example.com","ctx":{"error":{}}}]}
+
+------------------------------------------------------------------------------
+RN-15c · Login con U+0000 en la contraseña
+# Esperado: 422 (loc: ["body", "password"])
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin\u00001234"}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 2 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"value_error","loc":["body","password"],"msg":"Value error, El texto no puede contener el carácter nulo (U+0000)","input":"admin\u00001234","ctx":{"error":{}}}]}
+
+------------------------------------------------------------------------------
+Login del ADMIN
+# Esperado: 200 {"mensaje": "Sesión iniciada", "debe_cambiar_password": false, "expira_en_segundos": 1800}
+# y Set-Cookie: access_token=...
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin1234"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 200 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+RN-15d · Alta de género con U+0000 en el nombre (ADMIN)
+# Esperado: 422 (loc: ["body", "nombre"])
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/generos
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"nombre": "Ens\u0000ayo"}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 6 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"value_error","loc":["body","nombre"],"msg":"Value error, El texto no puede contener el carácter nulo (U+0000)","input":"Ens\u0000ayo","ctx":{"error":{}}}]}
+
+------------------------------------------------------------------------------
+RN-15e · PATCH de libro con U+0000 en el título (ADMIN)
+# Esperado: 422 (loc: ["body", "titulo"])
+
+>>> PETICIÓN
+PATCH http://127.0.0.1:8001/libros/1
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"titulo": "Ray\u0000uela"}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"value_error","loc":["body","titulo"],"msg":"Value error, El texto no puede contener el carácter nulo (U+0000)","input":"Ray\u0000uela","ctx":{"error":{}}}]}
+
+------------------------------------------------------------------------------
+RN-15f · Registro con U+0000 en el nombre
+# Esperado: 422 (loc: ["body", "nombre"])
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/registro
+Content-Type: application/json
+
+{"email": "nul@example.com", "nombre": "A\u0000b", "password": "clave1234"}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 1 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"value_error","loc":["body","nombre"],"msg":"Value error, El texto no puede contener el carácter nulo (U+0000)","input":"A\u0000b","ctx":{"error":{}}}]}
+
+------------------------------------------------------------------------------
+RN-15g (control) · Búsqueda normal sigue funcionando
+# Esperado: 200 con "total": 1 (Ficciones)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/libros?titulo=ficc
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 20 ms)
+Content-Type: application/json
+
+{"items":[{"id":3,"isbn":"978-950-00-0003-3","titulo":"Ficciones","precio":"22000.00","stock":8,"editorial":{"id":1,"nombre":"Sudamericana","pais":"Argentina"},"genero":{"id":2,"nombre":"Cuento"}}],"total":1,"page":1,"size":20,"pages":1}
+
+Resultado: coincide con todos los # Esperado: los siete casos con U+0000 (query, correo, contraseña, género, PATCH de libro, registro) responden 422 con el mensaje propio y ningún 500; el control sin NUL da 200 con total 1. Sin consultas psql.

@@ -1,0 +1,108 @@
+C-03 · Sesión por cookie: HttpOnly, SameSite=Lax, Max-Age; sin token en el cuerpo (Ej. 2)
+=========================================================================================
+
+Cómo se obtuvo (2026-11-06):
+  - Base: contenedor descartable postgres:16-alpine (PostgreSQL 16.15), sembrada con `python seed.py` justo antes de esta corrida.
+  - Python 3.13.15 del venv de parcial/; servidor `python -m uvicorn main:app --port 8001` (el 8000 lo ocupa otro proyecto); se usa 127.0.0.1 en vez de localhost porque en esta máquina localhost añade ~2 s por IPv6.
+  - Peticiones: las de parcial/test/C-03_cookie_login.http, sin modificarlo, ejecutadas en orden con un cliente HTTP temporal (httpx, no versionado) que
+    sustituye `@host` por http://127.0.0.1:8001, resuelve {{login*.response.headers.Set-Cookie}} (sólo la parte access_token=...) y
+    {{x.response.body.$.campo}}, y no guarda cookies entre peticiones (equivale a # @no-cookie-jar).
+  - El valor del JWT de las cookies se reemplazó por <jwt> (el resto de la respuesta va cruda).
+  - Cada petición muestra su comentario `# Esperado:` del .http, la petición enviada y la respuesta real.
+  - C-03d: el .http pide pegar a mano el JWT en @jwtPegado; el cliente temporal lo reemplaza por el access_token real devuelto por C-03a (se muestra como <jwt>).
+
+------------------------------------------------------------------------------
+C-03a · Login de Ana (CLIENTE)
+# Esperado: 200
+#   Cuerpo: {"mensaje": "Sesión iniciada", "debe_cambiar_password": false, "expira_en_segundos": 1800}
+#           (SIN token ni password en el cuerpo)
+#   Encabezado: Set-Cookie: access_token=<JWT>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "ana@example.com", "password": "ana12345"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 202 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+C-03b · Con la cookie, /auth/yo funciona
+# Esperado: 200 {"usuario": {"email": "ana@example.com", ...}, "roles_vigentes": ["CLIENTE"],
+#                "roles_token": ["CLIENTE"]}
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/auth/yo
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 23 ms)
+Content-Type: application/json
+
+{"usuario":{"id":4,"email":"ana@example.com","nombre":"Ana Paz","activo":true,"debe_cambiar_password":false},"roles_vigentes":["CLIENTE"],"roles_token":["CLIENTE"]}
+
+------------------------------------------------------------------------------
+C-03c · Sin cookie
+# Esperado: 401
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/auth/yo
+
+<<< RESPUESTA
+HTTP 401  (tiempo: 17 ms)
+Content-Type: application/json
+
+{"detail":"No autenticado"}
+
+------------------------------------------------------------------------------
+C-03d · Sólo con «Authorization: Bearer» (sin cookie)
+# Esperado: 401. El servidor sólo acepta la cookie, aunque el JWT sea válido.
+# (Pegá antes el JWT real en @jwtPegado; con el valor de ejemplo también da 401.)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/auth/yo
+Authorization: Bearer <jwt>
+
+<<< RESPUESTA
+HTTP 401  (tiempo: 1 ms)
+Content-Type: application/json
+
+{"detail":"No autenticado"}
+
+------------------------------------------------------------------------------
+C-03e (extra) · Logout borra la cookie
+# Esperado: 200 {"mensaje": "Sesión cerrada"} y Set-Cookie: access_token=""; Max-Age=0 (expira la cookie)
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/logout
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 16 ms)
+Content-Type: application/json
+Set-Cookie: access_token=""; expires=Fri, 06 Nov 2026 17:01:52 GMT; HttpOnly; Max-Age=0; Path=/; SameSite=lax
+
+{"mensaje":"Sesión cerrada"}
+
+------------------------------------------------------------------------------
+C-03f (extra) · Login con un campo de más
+# Esperado: 422 (extra_forbidden en «rol»)
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "ana@example.com", "password": "ana12345", "rol": "ADMIN"}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 1 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"extra_forbidden","loc":["body","rol"],"msg":"Extra inputs are not permitted","input":"ADMIN"}]}
+
+Resultado: coincide con todos los # Esperado: (200 con la cookie HttpOnly; Max-Age=1800; Path=/; SameSite=lax y sin token en el cuerpo; /auth/yo con cookie 200; sin cookie 401; con Authorization: Bearer y sin cookie 401; logout borra la cookie; campo extra 422). Archivo de sólo lectura: sin consultas psql.

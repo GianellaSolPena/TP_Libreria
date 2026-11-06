@@ -1,0 +1,155 @@
+C-06 · 401 vs 403 y acceso a lo propio
+======================================
+
+Cómo se obtuvo (2026-11-06):
+  - Base: contenedor descartable postgres:16-alpine (PostgreSQL 16.15), sembrada con `python seed.py` justo antes de esta corrida.
+  - Python 3.13.15 del venv de parcial/; servidor `python -m uvicorn main:app --port 8001` (el 8000 lo ocupa otro proyecto); se usa 127.0.0.1 en vez de localhost porque en esta máquina localhost añade ~2 s por IPv6.
+  - Peticiones: las de parcial/test/C-06_401_403_lo_propio.http, sin modificarlo, ejecutadas en orden con un cliente HTTP temporal (httpx, no versionado) que
+    sustituye `@host` por http://127.0.0.1:8001, resuelve {{login*.response.headers.Set-Cookie}} (sólo la parte access_token=...) y
+    {{x.response.body.$.campo}}, y no guarda cookies entre peticiones (equivale a # @no-cookie-jar).
+  - El valor del JWT de las cookies se reemplazó por <jwt> (el resto de la respuesta va cruda).
+  - Cada petición muestra su comentario `# Esperado:` del .http, la petición enviada y la respuesta real.
+
+------------------------------------------------------------------------------
+C-06a · Crear un libro SIN sesión
+# Esperado: 401 {"detail": "No autenticado"}  (sin sesión = 401, no 403)
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/libros
+Content-Type: application/json
+
+{"isbn": "978-950-00-0006-6", "titulo": "Libro de prueba", "precio": "1000.00", "stock_inicial": 1, "editorial_id": 1, "genero_id": 1, "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+<<< RESPUESTA
+HTTP 401  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"detail":"No autenticado"}
+
+------------------------------------------------------------------------------
+Login del VENDEDOR
+# Esperado: 200
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "vendedor@example.com", "password": "vendedor1234"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 219 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+C-06b · El VENDEDOR intenta crear un libro
+# Esperado: 403 (con sesión pero sin el rol ADMIN = 403, no 401)
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/libros
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"isbn": "978-950-00-0006-6", "titulo": "Libro de prueba", "precio": "1000.00", "stock_inicial": 1, "editorial_id": 1, "genero_id": 1, "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+<<< RESPUESTA
+HTTP 403  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"detail":"No tenés permiso para esta operación"}
+
+------------------------------------------------------------------------------
+C-06c · El VENDEDOR registra una venta para Ana Paz (cliente 3)
+# Esperado: 201 {"id": 2, "cliente": {"id": 3, "nombre": "Ana Paz", ...}, "total": "27000.00",
+#                "renglones": [{"libro_id": 4, "titulo": "Respiración artificial", "cantidad": 1,
+#                               "precio_unitario": "27000.00", ...}]}
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/ventas
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"cliente_id": 3, "renglones": [{"libro_id": 4, "cantidad": 1}]}
+
+<<< RESPUESTA
+HTTP 201  (tiempo: 16 ms)
+Content-Type: application/json
+
+{"id":2,"fecha":"2026-11-06T17:02:04.337891Z","total":"27000.00","cliente":{"id":3,"nombre":"Ana Paz","email":"ana@example.com"},"renglones":[{"libro_id":4,"titulo":"Respiración artificial","cantidad":1,"precio_unitario":"27000.00","subtotal":"27000.00"}]}
+
+------------------------------------------------------------------------------
+Login de ANA (CLIENTE)
+# Esperado: 200
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "ana@example.com", "password": "ana12345"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 208 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+C-06d · Ana ve SU venta
+# Esperado: 200 con la venta recién creada (cliente Ana Paz, total 27000.00)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/ventas/2
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 9 ms)
+Content-Type: application/json
+
+{"id":2,"fecha":"2026-11-06T17:02:04.337891Z","total":"27000.00","cliente":{"id":3,"nombre":"Ana Paz","email":"ana@example.com"},"renglones":[{"libro_id":4,"titulo":"Respiración artificial","cantidad":1,"precio_unitario":"27000.00","subtotal":"27000.00"}]}
+
+------------------------------------------------------------------------------
+C-06e · Ana intenta ver la venta 1 (de Lucía)
+# Esperado: 403 {"detail": "No podés ver una venta de otro cliente"}
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/ventas/1
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 403  (tiempo: 9 ms)
+Content-Type: application/json
+
+{"detail":"No podés ver una venta de otro cliente"}
+
+------------------------------------------------------------------------------
+C-06f (extra) · Ana lista sólo sus ventas
+# Esperado: 200 con total 1 (sólo la venta de Ana; antes de C-06c sería total 0)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/mis-ventas
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 9 ms)
+Content-Type: application/json
+
+{"items":[{"id":2,"fecha":"2026-11-06T17:02:04.337891Z","total":"27000.00","cliente":{"id":3,"nombre":"Ana Paz","email":"ana@example.com"}}],"total":1,"page":1,"size":20,"pages":1}
+
+------------------------------------------------------------------------------
+C-06g (extra) · Ana no puede listar todas las ventas (ruta del personal)
+# Esperado: 403
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/ventas
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 403  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"detail":"No tenés permiso para esta operación"}
+
+Resultado: coincide con todos los # Esperado: (401 sin sesión; 403 del VENDEDOR sin ADMIN; 201 de la venta de Ana por el VENDEDOR; Ana ve su venta 2 (200, resuelta con {{ventaDeAna.response.body.$.id}}) y recibe 403 con el mensaje propio en la venta 1 y en GET /ventas; /mis-ventas 200 con total 1). Archivo de sólo lectura salvo la venta de C-06c; sin consultas psql.

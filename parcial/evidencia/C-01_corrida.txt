@@ -1,0 +1,103 @@
+C-01 · Parámetro de ruta que no es un entero -> 422 (Ej. 1)
+===========================================================
+
+Cómo se obtuvo (2026-11-06):
+  - Base: contenedor descartable postgres:16-alpine (PostgreSQL 16.15), sembrada con `python seed.py` justo antes de esta corrida.
+  - Python 3.13.15 del venv de parcial/; servidor `python -m uvicorn main:app --port 8001` (el 8000 lo ocupa otro proyecto); se usa 127.0.0.1 en vez de localhost porque en esta máquina localhost añade ~2 s por IPv6.
+  - Peticiones: las de parcial/test/C-01_parametro_no_entero.http, sin modificarlo, ejecutadas en orden con un cliente HTTP temporal (httpx, no versionado) que
+    sustituye `@host` por http://127.0.0.1:8001, resuelve {{login*.response.headers.Set-Cookie}} (sólo la parte access_token=...) y
+    {{x.response.body.$.campo}}, y no guarda cookies entre peticiones (equivale a # @no-cookie-jar).
+  - El valor del JWT de las cookies se reemplazó por <jwt> (el resto de la respuesta va cruda).
+  - Cada petición muestra su comentario `# Esperado:` del .http, la petición enviada y la respuesta real.
+
+------------------------------------------------------------------------------
+Login del VENDEDOR
+# Esperado: 200 {"mensaje": "Sesión iniciada", "debe_cambiar_password": false, "expira_en_segundos": 1800}
+# y Set-Cookie: access_token=...
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "vendedor@example.com", "password": "vendedor1234"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 205 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+C-01a · Venta con id que no es entero (sesión iniciada)
+# Esperado: 422 con {"detail": [{"type": "int_parsing", "loc": ["path", "venta_id"], ...}]}
+# FastAPI lo rechaza antes de ejecutar el handler: no es 404 ni 500.
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/ventas/abc
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 13 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"int_parsing","loc":["path","venta_id"],"msg":"Input should be a valid integer, unable to parse string as an integer","input":"abc"}]}
+
+------------------------------------------------------------------------------
+Login del ADMIN
+# Esperado: 200
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin1234"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 199 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+C-01b · Id de usuario que no es entero (ADMIN)
+# Esperado: 422 (loc: ["path", "usuario_id"], type int_parsing)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/usuarios/abc/roles
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"int_parsing","loc":["path","usuario_id"],"msg":"Input should be a valid integer, unable to parse string as an integer","input":"abc"}]}
+
+------------------------------------------------------------------------------
+C-01c (extra) · Id de libro que no es entero (ruta pública, sin sesión)
+# Esperado: 422 (loc: ["path", "libro_id"])
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/libros/abc
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 19 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"int_parsing","loc":["path","libro_id"],"msg":"Input should be a valid integer, unable to parse string as an integer","input":"abc"}]}
+
+------------------------------------------------------------------------------
+C-01d (extra) · Id válido pero inexistente: 404, no 422
+# Esperado: 404 con un mensaje propio en "detail"
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/libros/999
+
+<<< RESPUESTA
+HTTP 404  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"detail":"Libro no encontrado"}
+
+Resultado: coincide con todos los # Esperado: (422 int_parsing en los tres casos de id no entero; 404 con mensaje propio para un id válido inexistente). Archivo de sólo lectura: sin consultas psql.

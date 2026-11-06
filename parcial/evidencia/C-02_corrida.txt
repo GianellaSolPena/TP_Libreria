@@ -1,0 +1,138 @@
+C-02 · Registro con correo repetido -> 409 con mensaje propio
+=============================================================
+
+Cómo se obtuvo (2026-11-06):
+  - Base: contenedor descartable postgres:16-alpine (PostgreSQL 16.15), sembrada con `python seed.py` justo antes de esta corrida.
+  - Python 3.13.15 del venv de parcial/; servidor `python -m uvicorn main:app --port 8001` (el 8000 lo ocupa otro proyecto); se usa 127.0.0.1 en vez de localhost porque en esta máquina localhost añade ~2 s por IPv6.
+  - Peticiones: las de parcial/test/C-02_registro_correo_repetido.http, sin modificarlo, ejecutadas en orden con un cliente HTTP temporal (httpx, no versionado) que
+    sustituye `@host` por http://127.0.0.1:8001, resuelve {{login*.response.headers.Set-Cookie}} (sólo la parte access_token=...) y
+    {{x.response.body.$.campo}}, y no guarda cookies entre peticiones (equivale a # @no-cookie-jar).
+  - El valor del JWT de las cookies se reemplazó por <jwt> (el resto de la respuesta va cruda).
+  - Cada petición muestra su comentario `# Esperado:` del .http, la petición enviada y la respuesta real.
+
+------------------------------------------------------------------------------
+C-02a · Registro exitoso (el correo no existe)
+# Esperado: 201
+# {"id": 6, "email": "nueva@example.com", "nombre": "Nueva Clienta", "activo": true,
+#  "debe_cambiar_password": false}      (sin password_hash). Se crea la cuenta, su rol CLIENTE
+# y su ficha de cliente (id 4) vinculada.
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/registro
+Content-Type: application/json
+
+{"email": "nueva@example.com", "nombre": "Nueva Clienta", "password": "nueva12345"}
+
+<<< RESPUESTA
+HTTP 201  (tiempo: 207 ms)
+Content-Type: application/json
+
+{"id":6,"email":"nueva@example.com","nombre":"Nueva Clienta","activo":true,"debe_cambiar_password":false}
+
+------------------------------------------------------------------------------
+C-02b · Correo de un USUARIO existente (ana@example.com)
+# Esperado: 409 {"detail": "Ya existe una cuenta o un cliente con ese correo"}
+# Mensaje propio: sin "uq_", "duplicate key" ni texto de la base; nunca un 500.
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/registro
+Content-Type: application/json
+
+{"email": "ana@example.com", "nombre": "Otra Ana", "password": "nueva12345"}
+
+<<< RESPUESTA
+HTTP 409  (tiempo: 192 ms)
+Content-Type: application/json
+
+{"detail":"Ya existe una cuenta o un cliente con ese correo"}
+
+------------------------------------------------------------------------------
+C-02c · Correo de un CLIENTE existente sin cuenta (tomas@example.com)
+# Esperado: 409 con el mismo mensaje propio. El registro NO se apropia de la ficha
+# del cliente 2 (queda sin usuario).
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/registro
+Content-Type: application/json
+
+{"email": "tomas@example.com", "nombre": "Tomás Ríos", "password": "nueva12345"}
+
+<<< RESPUESTA
+HTTP 409  (tiempo: 198 ms)
+Content-Type: application/json
+
+{"detail":"Ya existe una cuenta o un cliente con ese correo"}
+
+------------------------------------------------------------------------------
+C-02d (extra) · El correo se normaliza: mayúsculas del mismo correo → 409
+# Esperado: 409 (Ana@Example.com es la misma cuenta que ana@example.com)
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/registro
+Content-Type: application/json
+
+{"email": "Ana@Example.com", "nombre": "Otra Ana", "password": "nueva12345"}
+
+<<< RESPUESTA
+HTTP 409  (tiempo: 192 ms)
+Content-Type: application/json
+
+{"detail":"Ya existe una cuenta o un cliente con ese correo"}
+
+------------------------------------------------------------------------------
+C-02e (extra) · No se puede elegir rol en el registro (campo extra)
+# Esperado: 422 (extra_forbidden en "rol"); nadie se registra como ADMIN
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/registro
+Content-Type: application/json
+
+{"email": "intruso@example.com", "nombre": "Intruso", "password": "nueva12345", "rol": "ADMIN"}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 9 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"extra_forbidden","loc":["body","rol"],"msg":"Extra inputs are not permitted","input":"ADMIN"}]}
+
+------------------------------------------------------------------------------
+C-02f (extra) · Contraseña de más de 72 bytes (límite de bcrypt)
+# Esperado: 422 (la contraseña no puede superar los 72 bytes); no 500
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/registro
+Content-Type: application/json
+
+{"email": "larga@example.com", "nombre": "Larga", "password": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 1 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"value_error","loc":["body","password"],"msg":"Value error, La contrasena no puede superar los 72 bytes en UTF-8","input":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","ctx":{"error":{}}}]}
+
+==============================================================================
+Comprobaciones en la base
+==============================================================================
+
+$ docker exec -i libreria-f02 psql -U libreria -d libreria -c "SELECT email FROM usuario WHERE email IN ('nueva@example.com','tomas@example.com','intruso@example.com','larga@example.com') ORDER BY email;"
+       email       
+-------------------
+ nueva@example.com
+(1 row)
+
+
+$ docker exec -i libreria-f02 psql -U libreria -d libreria -c "SELECT id, email, usuario_id FROM cliente WHERE email = 'tomas@example.com';"
+ id |       email       | usuario_id 
+----+-------------------+------------
+  2 | tomas@example.com |           
+(1 row)
+
+
+$ docker exec -i libreria-f02 psql -U libreria -d libreria -c "SELECT count(*) FROM cliente;"
+ count 
+-------
+     4
+(1 row)
+
+Resultado: las 6 respuestas coinciden con su # Esperado: (201; tres 409 con el mensaje propio; dos 422) y la base queda sin filas sueltas (sólo nueva@example.com; el cliente 2 sigue sin usuario; 4 clientes).

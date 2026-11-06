@@ -1,0 +1,170 @@
+C-09 · Cambio de contraseña obligatorio
+=======================================
+
+Cómo se obtuvo (2026-11-06):
+  - Base: contenedor descartable postgres:16-alpine (PostgreSQL 16.15), sembrada con `python seed.py` justo antes de esta corrida.
+  - Python 3.13.15 del venv de parcial/; servidor `python -m uvicorn main:app --port 8001` (el 8000 lo ocupa otro proyecto); se usa 127.0.0.1 en vez de localhost porque en esta máquina localhost añade ~2 s por IPv6.
+  - Peticiones: las de parcial/test/C-09_cambio_obligatorio.http, sin modificarlo, ejecutadas en orden con un cliente HTTP temporal (httpx, no versionado) que
+    sustituye `@host` por http://127.0.0.1:8001, resuelve {{login*.response.headers.Set-Cookie}} (sólo la parte access_token=...) y
+    {{x.response.body.$.campo}}, y no guarda cookies entre peticiones (equivale a # @no-cookie-jar).
+  - El valor del JWT de las cookies se reemplazó por <jwt> (el resto de la respuesta va cruda).
+  - Cada petición muestra su comentario `# Esperado:` del .http, la petición enviada y la respuesta real.
+
+------------------------------------------------------------------------------
+C-09a · Login de nuevo@ con la contraseña provisoria
+# Esperado: 200 {"mensaje": "Sesión iniciada", "debe_cambiar_password": true, ...}
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "nuevo@example.com", "password": "nuevo1234"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 204 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":true,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+C-09b · Ruta protegida con el cambio pendiente
+# Esperado: 403 (debe cambiar la contraseña antes de usar el sistema)
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/ventas
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 403  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"detail":"Tenés que cambiar la contraseña antes de seguir"}
+
+------------------------------------------------------------------------------
+C-09c · /auth/yo sí está permitido
+# Esperado: 200 con "debe_cambiar_password": true
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/auth/yo
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"usuario":{"id":5,"email":"nuevo@example.com","nombre":"Personal nuevo","activo":true,"debe_cambiar_password":true},"roles_vigentes":["VENDEDOR"],"roles_token":["VENDEDOR"]}
+
+------------------------------------------------------------------------------
+C-09d · Cambio de contraseña
+# Esperado: 200 {"mensaje": "Contraseña actualizada"}
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/cambiar-password
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"password_actual": "nuevo1234", "password_nueva": "nuevo56789"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 387 ms)
+Content-Type: application/json
+
+{"mensaje":"Contraseña actualizada"}
+
+------------------------------------------------------------------------------
+C-09e · La MISMA cookie ya entra a la ruta protegida
+# Esperado: 200 (lista de ventas, total 1). El estado se lee de la base: no hace falta nuevo login.
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/ventas
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 8 ms)
+Content-Type: application/json
+
+{"items":[{"id":1,"fecha":"2026-10-01T15:00:00Z","total":"69000.00","cliente":{"id":1,"nombre":"Lucía Fernández","email":"lucia@example.com"}}],"total":1,"page":1,"size":20,"pages":1}
+
+------------------------------------------------------------------------------
+C-09f · /auth/yo ya no marca el cambio pendiente
+# Esperado: 200 con "debe_cambiar_password": false
+
+>>> PETICIÓN
+GET http://127.0.0.1:8001/auth/yo
+Cookie: access_token=<jwt>
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 4 ms)
+Content-Type: application/json
+
+{"usuario":{"id":5,"email":"nuevo@example.com","nombre":"Personal nuevo","activo":true,"debe_cambiar_password":false},"roles_vigentes":["VENDEDOR"],"roles_token":["VENDEDOR"]}
+
+------------------------------------------------------------------------------
+C-09g (extra) · La contraseña provisoria dejó de valer
+# Esperado: 401
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "nuevo@example.com", "password": "nuevo1234"}
+
+<<< RESPUESTA
+HTTP 401  (tiempo: 195 ms)
+Content-Type: application/json
+
+{"detail":"Correo o contraseña incorrectos"}
+
+------------------------------------------------------------------------------
+C-09h (extra) · Con la contraseña nueva se entra y el aviso es false
+# Esperado: 200 con "debe_cambiar_password": false
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "nuevo@example.com", "password": "nuevo56789"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 199 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+Login del ADMIN (para la alta de personal)
+# Esperado: 200
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin1234"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 197 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+C-09i (extra) · Alta de personal con un correo ya usado
+# Esperado: 409 con un mensaje propio (sin texto de la base)
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/usuarios
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"email": "nuevo@example.com", "nombre": "Repetido", "password": "provisoria123", "rol": "VENDEDOR"}
+
+<<< RESPUESTA
+HTTP 409  (tiempo: 193 ms)
+Content-Type: application/json
+
+{"detail":"Ya existe un usuario con ese correo"}
+
+Resultado: coincide con todos los # Esperado: (login con debe_cambiar_password true; 403 con el mensaje propio en /ventas; /auth/yo permitido; cambio 200; la MISMA cookie entra a /ventas y /auth/yo ya dice false; la provisoria da 401; la nueva entra; alta con correo repetido 409). Sin consultas psql.

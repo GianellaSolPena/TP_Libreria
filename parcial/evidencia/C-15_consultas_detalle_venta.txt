@@ -1,26 +1,136 @@
-C-15 · Consultas del detalle de una venta (SQL_ECHO=true, consola de uvicorn).
-Cómo se obtuvo (2026-11-06): python seed.py; SQL_ECHO=true uvicorn main:app; test/C-15_detalle_consultas_fijas.http
-Se cuentan las sentencias SELECT de cada petición (BEGIN/COMMIT se dejan como contexto; las líneas de parámetros se omiten).
-Mismo usuario (VENDEDOR) en las dos peticiones. Datos: los del seed (venta 1, 2 renglones) y la venta creada por C-15a (4 renglones).
+C-15 · Consultas del detalle de una venta (SQL_ECHO=true, consola de uvicorn)
+===========================================================================
 
-=== C-15b · Detalle de la venta 1 (2 renglones) · GET /ventas/1 · HTTP 200 · renglones: 2 · SELECT = 4
-    BEGIN (implicit)
-    SELECT usuario.id, usuario.email, usuario.nombre, usuario.password_hash, usuario.activo, usuario.debe_cambiar_password
-    SELECT asignacion_rol.rol
-    COMMIT
-    BEGIN (implicit)
-    SELECT venta.id, venta.cliente_id, venta.fecha, venta.total, cliente_1.id AS id_1, cliente_1.nombre, cliente_1.email, cliente_1.usuario_id
-    SELECT renglon_venta.venta_id, renglon_venta.id, renglon_venta.libro_id, renglon_venta.cantidad, renglon_venta.precio_unitario, libro_1.id, libro_1.isbn, libro_1.titulo, libro_1.precio, libro_1.stoc [...]
-    COMMIT
+Cómo se obtuvo (2026-11-06):
+  - Base: contenedor descartable postgres:16-alpine (PostgreSQL 16.15), sembrada con `python seed.py` justo antes.
+  - `SQL_ECHO=true python -m uvicorn main:app --port 8001` (Python 3.13.15 del venv de parcial/; stdout+stderr a un archivo).
+  - Peticiones: las de parcial/test/C-15_detalle_consultas_fijas.http, sin modificarlo, ejecutadas con un cliente HTTP temporal (httpx, no versionado)
+    que sustituye @host por http://127.0.0.1:8001 y resuelve las referencias {{...}} (el JWT no aparece en el log del servidor).
+    Resultado de las peticiones: login 200, C-15a 201 (total 104000.00, 4 renglones), C-15b 200 (venta 1, 2 renglones), C-15c 200 (venta 2, 4 renglones).
+  - Lo que sigue es la salida CRUDA de uvicorn (sin recortes ni líneas omitidas) desde el login del VENDEDOR hasta el segundo GET /ventas/N 200.
+    Las sentencias largas aparecen en una sola línea tal como las emite SQLAlchemy.
+  - Cómo se cuenta: entre dos líneas «INFO: ... HTTP/1.1» consecutivas están las sentencias de UNA petición; se cuentan las líneas
+    «sqlalchemy.engine.Engine SELECT ...» (BEGIN/COMMIT y las líneas de parámetros no cuentan).
 
-=== C-15c · Detalle de la venta nueva (4 renglones) · GET /ventas/2 · HTTP 200 · renglones: 4 · SELECT = 4
-    BEGIN (implicit)
-    SELECT usuario.id, usuario.email, usuario.nombre, usuario.password_hash, usuario.activo, usuario.debe_cambiar_password
-    SELECT asignacion_rol.rol
-    COMMIT
-    BEGIN (implicit)
-    SELECT venta.id, venta.cliente_id, venta.fecha, venta.total, cliente_1.id AS id_1, cliente_1.nombre, cliente_1.email, cliente_1.usuario_id
-    SELECT renglon_venta.venta_id, renglon_venta.id, renglon_venta.libro_id, renglon_venta.cantidad, renglon_venta.precio_unitario, libro_1.id, libro_1.isbn, libro_1.titulo, libro_1.precio, libro_1.stoc [...]
-    COMMIT
+=== Salida cruda de la consola de uvicorn ===
+
+2026-11-06 14:03:36,743 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-11-06 14:03:36,760 INFO sqlalchemy.engine.Engine SELECT intento_acceso.cuando 
+FROM intento_acceso 
+WHERE intento_acceso.email = $1::VARCHAR AND intento_acceso.ip = $2::VARCHAR AND intento_acceso.exito IS false AND intento_acceso.cuando > $3::TIMESTAMP WITH TIME ZONE AND intento_acceso.cuando > coalesce((SELECT max(intento_acceso.cuando) AS max_1 
+FROM intento_acceso 
+WHERE intento_acceso.email = $4::VARCHAR AND intento_acceso.ip = $5::VARCHAR AND intento_acceso.exito IS true), '-infinity'::timestamptz) ORDER BY intento_acceso.cuando DESC 
+ LIMIT $6::INTEGER
+2026-11-06 14:03:36,760 INFO sqlalchemy.engine.Engine [generated in 0.00018s] ('vendedor@example.com', '127.0.0.1', datetime.datetime(2026, 11, 6, 17, 2, 36, 742446, tzinfo=datetime.timezone.utc), 'vendedor@example.com', '127.0.0.1', 5)
+2026-11-06 14:03:36,767 INFO sqlalchemy.engine.Engine SELECT usuario.id, usuario.email, usuario.nombre, usuario.password_hash, usuario.activo, usuario.debe_cambiar_password 
+FROM usuario 
+WHERE usuario.email = $1::VARCHAR
+2026-11-06 14:03:36,767 INFO sqlalchemy.engine.Engine [generated in 0.00013s] ('vendedor@example.com',)
+2026-11-06 14:03:36,769 INFO sqlalchemy.engine.Engine COMMIT
+2026-11-06 14:03:36,956 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-11-06 14:03:36,956 INFO sqlalchemy.engine.Engine INSERT INTO intento_acceso (cuando, email, ip, exito) VALUES ($1::TIMESTAMP WITH TIME ZONE, $2::VARCHAR, $3::VARCHAR, $4::BOOLEAN) RETURNING intento_acceso.id
+2026-11-06 14:03:36,956 INFO sqlalchemy.engine.Engine [generated in 0.00012s] (datetime.datetime(2026, 11, 6, 17, 3, 36, 742446, tzinfo=datetime.timezone.utc), 'vendedor@example.com', '127.0.0.1', True)
+2026-11-06 14:03:36,959 INFO sqlalchemy.engine.Engine COMMIT
+2026-11-06 14:03:36,962 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-11-06 14:03:36,963 INFO sqlalchemy.engine.Engine SELECT asignacion_rol.rol 
+FROM asignacion_rol 
+WHERE asignacion_rol.usuario_id = $1::INTEGER AND asignacion_rol.revocada_en IS NULL AND (asignacion_rol.vence_en IS NULL OR asignacion_rol.vence_en > $2::TIMESTAMP WITH TIME ZONE) ORDER BY asignacion_rol.rol
+2026-11-06 14:03:36,963 INFO sqlalchemy.engine.Engine [generated in 0.00010s] (3, datetime.datetime(2026, 11, 6, 17, 3, 36, 962347, tzinfo=datetime.timezone.utc))
+2026-11-06 14:03:36,965 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:52109 - "POST /auth/login HTTP/1.1" 200 OK
+2026-11-06 14:03:37,134 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-11-06 14:03:37,135 INFO sqlalchemy.engine.Engine SELECT usuario.id, usuario.email, usuario.nombre, usuario.password_hash, usuario.activo, usuario.debe_cambiar_password 
+FROM usuario 
+WHERE usuario.id = $1::INTEGER
+2026-11-06 14:03:37,135 INFO sqlalchemy.engine.Engine [generated in 0.00014s] (3,)
+2026-11-06 14:03:37,138 INFO sqlalchemy.engine.Engine SELECT asignacion_rol.rol 
+FROM asignacion_rol 
+WHERE asignacion_rol.usuario_id = $1::INTEGER AND asignacion_rol.revocada_en IS NULL AND (asignacion_rol.vence_en IS NULL OR asignacion_rol.vence_en > $2::TIMESTAMP WITH TIME ZONE) ORDER BY asignacion_rol.rol
+2026-11-06 14:03:37,138 INFO sqlalchemy.engine.Engine [cached since 0.1748s ago] (3, datetime.datetime(2026, 11, 6, 17, 3, 37, 137830, tzinfo=datetime.timezone.utc))
+2026-11-06 14:03:37,139 INFO sqlalchemy.engine.Engine COMMIT
+2026-11-06 14:03:37,140 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-11-06 14:03:37,141 INFO sqlalchemy.engine.Engine SELECT libro.id, libro.isbn, libro.titulo, libro.precio, libro.stock, libro.borrado_en, libro.editorial_id, libro.genero_id 
+FROM libro 
+WHERE libro.id IN ($1::INTEGER, $2::INTEGER, $3::INTEGER, $4::INTEGER) AND libro.borrado_en IS NULL
+2026-11-06 14:03:37,141 INFO sqlalchemy.engine.Engine [generated in 0.00016s] (1, 2, 3, 4)
+2026-11-06 14:03:37,145 INFO sqlalchemy.engine.Engine INSERT INTO venta (cliente_id, fecha, total) VALUES ($1::INTEGER, $2::TIMESTAMP WITH TIME ZONE, $3::NUMERIC(12, 2)) RETURNING venta.id
+2026-11-06 14:03:37,145 INFO sqlalchemy.engine.Engine [generated in 0.00012s] (2, datetime.datetime(2026, 11, 6, 17, 3, 37, 144465, tzinfo=datetime.timezone.utc), Decimal('104000.00'))
+2026-11-06 14:03:37,148 INFO sqlalchemy.engine.Engine INSERT INTO renglon_venta (venta_id, libro_id, cantidad, precio_unitario) SELECT p0::INTEGER, p1::INTEGER, p2::INTEGER, p3::NUMERIC(10, 2) FROM (VALUES ($1::INTEGER, $2::INTEGER, $3::INTEGER, $4::NUMERIC(10, 2), 0), ($5::INTEGER, $6::INTEGER, $7::INT ... 179 characters truncated ...  p1, p2, p3, sen_counter) ORDER BY sen_counter RETURNING renglon_venta.id, renglon_venta.id AS id__1
+2026-11-06 14:03:37,148 INFO sqlalchemy.engine.Engine [generated in 0.00006s (insertmanyvalues) 1/1 (ordered)] (2, 1, 1, Decimal('25000.00'), 2, 2, 1, Decimal('30000.00'), 2, 3, 1, Decimal('22000.00'), 2, 4, 1, Decimal('27000.00'))
+2026-11-06 14:03:37,152 INFO sqlalchemy.engine.Engine UPDATE libro SET stock=(libro.stock + $1::INTEGER) WHERE libro.id = $2::INTEGER AND libro.borrado_en IS NULL AND libro.stock + $3::INTEGER >= $4::INTEGER RETURNING libro.stock
+2026-11-06 14:03:37,152 INFO sqlalchemy.engine.Engine [generated in 0.00013s] (-1, 1, -1, 0)
+2026-11-06 14:03:37,155 INFO sqlalchemy.engine.Engine INSERT INTO movimiento_stock (libro_id, venta_id, usuario_id, cantidad, motivo, cuando) VALUES ($1::INTEGER, $2::INTEGER, $3::INTEGER, $4::INTEGER, $5::VARCHAR, $6::TIMESTAMP WITH TIME ZONE) RETURNING movimiento_stock.id
+2026-11-06 14:03:37,155 INFO sqlalchemy.engine.Engine [generated in 0.00011s] (1, 2, 3, -1, 'Venta', datetime.datetime(2026, 11, 6, 17, 3, 37, 154503, tzinfo=datetime.timezone.utc))
+2026-11-06 14:03:37,157 INFO sqlalchemy.engine.Engine UPDATE libro SET stock=(libro.stock + $1::INTEGER) WHERE libro.id = $2::INTEGER AND libro.borrado_en IS NULL AND libro.stock + $3::INTEGER >= $4::INTEGER RETURNING libro.stock
+2026-11-06 14:03:37,157 INFO sqlalchemy.engine.Engine [cached since 0.004913s ago] (-1, 2, -1, 0)
+2026-11-06 14:03:37,158 INFO sqlalchemy.engine.Engine INSERT INTO movimiento_stock (libro_id, venta_id, usuario_id, cantidad, motivo, cuando) VALUES ($1::INTEGER, $2::INTEGER, $3::INTEGER, $4::INTEGER, $5::VARCHAR, $6::TIMESTAMP WITH TIME ZONE) RETURNING movimiento_stock.id
+2026-11-06 14:03:37,158 INFO sqlalchemy.engine.Engine [cached since 0.003649s ago] (2, 2, 3, -1, 'Venta', datetime.datetime(2026, 11, 6, 17, 3, 37, 158518, tzinfo=datetime.timezone.utc))
+2026-11-06 14:03:37,159 INFO sqlalchemy.engine.Engine UPDATE libro SET stock=(libro.stock + $1::INTEGER) WHERE libro.id = $2::INTEGER AND libro.borrado_en IS NULL AND libro.stock + $3::INTEGER >= $4::INTEGER RETURNING libro.stock
+2026-11-06 14:03:37,159 INFO sqlalchemy.engine.Engine [cached since 0.00714s ago] (-1, 3, -1, 0)
+2026-11-06 14:03:37,160 INFO sqlalchemy.engine.Engine INSERT INTO movimiento_stock (libro_id, venta_id, usuario_id, cantidad, motivo, cuando) VALUES ($1::INTEGER, $2::INTEGER, $3::INTEGER, $4::INTEGER, $5::VARCHAR, $6::TIMESTAMP WITH TIME ZONE) RETURNING movimiento_stock.id
+2026-11-06 14:03:37,160 INFO sqlalchemy.engine.Engine [cached since 0.005809s ago] (3, 2, 3, -1, 'Venta', datetime.datetime(2026, 11, 6, 17, 3, 37, 160707, tzinfo=datetime.timezone.utc))
+2026-11-06 14:03:37,162 INFO sqlalchemy.engine.Engine UPDATE libro SET stock=(libro.stock + $1::INTEGER) WHERE libro.id = $2::INTEGER AND libro.borrado_en IS NULL AND libro.stock + $3::INTEGER >= $4::INTEGER RETURNING libro.stock
+2026-11-06 14:03:37,162 INFO sqlalchemy.engine.Engine [cached since 0.009285s ago] (-1, 4, -1, 0)
+2026-11-06 14:03:37,163 INFO sqlalchemy.engine.Engine INSERT INTO movimiento_stock (libro_id, venta_id, usuario_id, cantidad, motivo, cuando) VALUES ($1::INTEGER, $2::INTEGER, $3::INTEGER, $4::INTEGER, $5::VARCHAR, $6::TIMESTAMP WITH TIME ZONE) RETURNING movimiento_stock.id
+2026-11-06 14:03:37,163 INFO sqlalchemy.engine.Engine [cached since 0.007971s ago] (4, 2, 3, -1, 'Venta', datetime.datetime(2026, 11, 6, 17, 3, 37, 162889, tzinfo=datetime.timezone.utc))
+2026-11-06 14:03:37,166 INFO sqlalchemy.engine.Engine SELECT venta.id, venta.cliente_id, venta.fecha, venta.total, cliente_1.id AS id_1, cliente_1.nombre, cliente_1.email, cliente_1.usuario_id 
+FROM venta LEFT OUTER JOIN cliente AS cliente_1 ON cliente_1.id = venta.cliente_id 
+WHERE venta.id = $1::INTEGER
+2026-11-06 14:03:37,166 INFO sqlalchemy.engine.Engine [generated in 0.00013s] (2,)
+2026-11-06 14:03:37,169 INFO sqlalchemy.engine.Engine SELECT renglon_venta.venta_id, renglon_venta.id, renglon_venta.libro_id, renglon_venta.cantidad, renglon_venta.precio_unitario, libro_1.id, libro_1.isbn, libro_1.titulo, libro_1.precio, libro_1.stock, libro_1.borrado_en, libro_1.editorial_id, libro_1.genero_id 
+FROM renglon_venta LEFT OUTER JOIN libro AS libro_1 ON libro_1.id = renglon_venta.libro_id 
+WHERE renglon_venta.venta_id IN ($1::INTEGER)
+2026-11-06 14:03:37,169 INFO sqlalchemy.engine.Engine [generated in 0.00014s] (2,)
+2026-11-06 14:03:37,171 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:52110 - "POST /ventas HTTP/1.1" 201 Created
+2026-11-06 14:03:37,325 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-11-06 14:03:37,325 INFO sqlalchemy.engine.Engine SELECT usuario.id, usuario.email, usuario.nombre, usuario.password_hash, usuario.activo, usuario.debe_cambiar_password 
+FROM usuario 
+WHERE usuario.id = $1::INTEGER
+2026-11-06 14:03:37,325 INFO sqlalchemy.engine.Engine [cached since 0.1906s ago] (3,)
+2026-11-06 14:03:37,327 INFO sqlalchemy.engine.Engine SELECT asignacion_rol.rol 
+FROM asignacion_rol 
+WHERE asignacion_rol.usuario_id = $1::INTEGER AND asignacion_rol.revocada_en IS NULL AND (asignacion_rol.vence_en IS NULL OR asignacion_rol.vence_en > $2::TIMESTAMP WITH TIME ZONE) ORDER BY asignacion_rol.rol
+2026-11-06 14:03:37,328 INFO sqlalchemy.engine.Engine [cached since 0.3647s ago] (3, datetime.datetime(2026, 11, 6, 17, 3, 37, 327670, tzinfo=datetime.timezone.utc))
+2026-11-06 14:03:37,328 INFO sqlalchemy.engine.Engine COMMIT
+2026-11-06 14:03:37,329 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-11-06 14:03:37,330 INFO sqlalchemy.engine.Engine SELECT venta.id, venta.cliente_id, venta.fecha, venta.total, cliente_1.id AS id_1, cliente_1.nombre, cliente_1.email, cliente_1.usuario_id 
+FROM venta LEFT OUTER JOIN cliente AS cliente_1 ON cliente_1.id = venta.cliente_id 
+WHERE venta.id = $1::INTEGER
+2026-11-06 14:03:37,330 INFO sqlalchemy.engine.Engine [cached since 0.1638s ago] (1,)
+2026-11-06 14:03:37,331 INFO sqlalchemy.engine.Engine SELECT renglon_venta.venta_id, renglon_venta.id, renglon_venta.libro_id, renglon_venta.cantidad, renglon_venta.precio_unitario, libro_1.id, libro_1.isbn, libro_1.titulo, libro_1.precio, libro_1.stock, libro_1.borrado_en, libro_1.editorial_id, libro_1.genero_id 
+FROM renglon_venta LEFT OUTER JOIN libro AS libro_1 ON libro_1.id = renglon_venta.libro_id 
+WHERE renglon_venta.venta_id IN ($1::INTEGER)
+2026-11-06 14:03:37,331 INFO sqlalchemy.engine.Engine [cached since 0.1622s ago] (1,)
+2026-11-06 14:03:37,332 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:52111 - "GET /ventas/1 HTTP/1.1" 200 OK
+2026-11-06 14:03:37,472 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-11-06 14:03:37,472 INFO sqlalchemy.engine.Engine SELECT usuario.id, usuario.email, usuario.nombre, usuario.password_hash, usuario.activo, usuario.debe_cambiar_password 
+FROM usuario 
+WHERE usuario.id = $1::INTEGER
+2026-11-06 14:03:37,472 INFO sqlalchemy.engine.Engine [cached since 0.337s ago] (3,)
+2026-11-06 14:03:37,474 INFO sqlalchemy.engine.Engine SELECT asignacion_rol.rol 
+FROM asignacion_rol 
+WHERE asignacion_rol.usuario_id = $1::INTEGER AND asignacion_rol.revocada_en IS NULL AND (asignacion_rol.vence_en IS NULL OR asignacion_rol.vence_en > $2::TIMESTAMP WITH TIME ZONE) ORDER BY asignacion_rol.rol
+2026-11-06 14:03:37,474 INFO sqlalchemy.engine.Engine [cached since 0.5109s ago] (3, datetime.datetime(2026, 11, 6, 17, 3, 37, 473960, tzinfo=datetime.timezone.utc))
+2026-11-06 14:03:37,475 INFO sqlalchemy.engine.Engine COMMIT
+2026-11-06 14:03:37,476 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-11-06 14:03:37,476 INFO sqlalchemy.engine.Engine SELECT venta.id, venta.cliente_id, venta.fecha, venta.total, cliente_1.id AS id_1, cliente_1.nombre, cliente_1.email, cliente_1.usuario_id 
+FROM venta LEFT OUTER JOIN cliente AS cliente_1 ON cliente_1.id = venta.cliente_id 
+WHERE venta.id = $1::INTEGER
+2026-11-06 14:03:37,476 INFO sqlalchemy.engine.Engine [cached since 0.3102s ago] (2,)
+2026-11-06 14:03:37,477 INFO sqlalchemy.engine.Engine SELECT renglon_venta.venta_id, renglon_venta.id, renglon_venta.libro_id, renglon_venta.cantidad, renglon_venta.precio_unitario, libro_1.id, libro_1.isbn, libro_1.titulo, libro_1.precio, libro_1.stock, libro_1.borrado_en, libro_1.editorial_id, libro_1.genero_id 
+FROM renglon_venta LEFT OUTER JOIN libro AS libro_1 ON libro_1.id = renglon_venta.libro_id 
+WHERE renglon_venta.venta_id IN ($1::INTEGER)
+2026-11-06 14:03:37,477 INFO sqlalchemy.engine.Engine [cached since 0.3085s ago] (2,)
+2026-11-06 14:03:37,479 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:52112 - "GET /ventas/2 HTTP/1.1" 200 OK
+
+=== Conteo de sentencias SELECT por petición (sobre la salida de arriba) ===
+
+C-15b · GET /ventas/1 (2 renglones) · HTTP 200: 4 SELECT
+  1) usuario (autenticación)   2) roles vigentes del usuario   3) venta + cliente (JOIN)   4) renglones + libro de cada renglón (IN + JOIN)
+C-15c · GET /ventas/2 (4 renglones) · HTTP 200: 4 SELECT
+  los mismos 4, en el mismo orden
 
 Conclusión: 4 SELECT con 2 renglones y 4 SELECT con 4 renglones: la cantidad de consultas no depende de los renglones (sin N+1).

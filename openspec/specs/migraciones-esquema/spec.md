@@ -25,7 +25,7 @@ A las migraciones `0001` y `0002` del TP SHALL sumarse exactamente dos: `0003` (
 - **THEN** el docstring de `0003` declara que es autogenerada, leída antes de aplicar y lista cada corrección manual con su motivo, y el de `0004` declara que es a mano porque la comparación automática no ve funciones ni disparadores
 
 ### Requirement: Ciclo upgrade, downgrade, upgrade
-Sobre una base vacía, `alembic upgrade head`, luego `alembic downgrade base` y otra vez `alembic upgrade head` SHALL terminar sin errores, dejando tras el downgrade la base sin tablas del proyecto ni funciones o disparadores residuales.
+Sobre una base vacía, `alembic upgrade head`, luego `alembic downgrade base` y otra vez `alembic upgrade head` SHALL terminar sin errores, dejando tras el downgrade la base sin tablas del proyecto ni funciones o disparadores residuales. La salida completa de los tres comandos, junto con el estado de la base después de cada uno (tablas, revisión de `alembic_version` y existencia de la función del disparador), MUST guardarse en `parcial/evidencia/`, tomada sobre una base PostgreSQL 16 descartable, con un encabezado que indique cómo se obtuvo y sin contraseñas.
 
 #### Scenario: Ciclo completo en base vacía
 - **WHEN** sobre una base vacía se corren `upgrade head`, `downgrade base` y `upgrade head`
@@ -38,6 +38,10 @@ Sobre una base vacía, `alembic upgrade head`, luego `alembic downgrade base` y 
 #### Scenario: Downgrade restaura el UNIQUE del ISBN
 - **WHEN** se corre `alembic downgrade 0002`
 - **THEN** `libro` vuelve a tener el UNIQUE común `uq_libro_isbn` y no tiene `borrado_en`
+
+#### Scenario: Evidencia del ciclo
+- **WHEN** se lee el archivo del ciclo en `parcial/evidencia/`
+- **THEN** muestra las líneas `Running upgrade` de 0001 a 0004, las `Running downgrade` de 0004 a 0001 y otra vez las de upgrade, cada una seguida del estado de la base, y el estado final es igual al del primer `upgrade head`
 
 ### Requirement: Modelos y migraciones sin diferencias
 Tras `alembic upgrade head`, la comparación automática de Alembic entre los modelos y la base SHALL no detectar diferencias.
@@ -75,4 +79,3 @@ La base SHALL rechazar todo UPDATE y todo DELETE sobre filas de `movimiento_stoc
 #### Scenario: Captura entregable
 - **WHEN** se revisa `parcial/evidencia/` después de correr el script sobre los datos iniciales
 - **THEN** hay un archivo con la salida de psql que muestra los dos rechazos y que el conteo de movimientos antes y después es 7
-
