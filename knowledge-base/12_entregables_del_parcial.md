@@ -1,6 +1,6 @@
 # Entregables del Parcial
 
-Entrega: **una por grupo**, un único `.zip` que sube **un solo integrante** al campus (tarea de entrega: `https://campustest.frm.utn.edu.ar/mod/assign/view.php?id=1915`). Nombre: `Parcial_Cap1a6_<NombreDelGrupo>.zip` (nombre del grupo: pendiente, Q-01). Fecha límite: se publica en el campus (Q-13).
+Entrega: **una por grupo**, un único `.zip` que sube **un solo integrante** al campus (tarea de entrega: `https://campustest.frm.utn.edu.ar/mod/assign/view.php?id=1915`). Nombre: `Parcial_Cap1a6_<NombreDelGrupo>.zip`; para este grupo ("Las chicas", Q-01 resuelta): `Parcial_Cap1a6_Las_chicas.zip` (con guion bajo, sin espacio). Fecha límite: se publica en el campus (Q-13).
 
 ## Puntaje por ejercicio (total 100)
 | Ej. | Título | Puntos | Qué se mira (criterios de evaluación) |

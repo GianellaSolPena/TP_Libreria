@@ -158,7 +158,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 
 ### [C-12] `empaquetado-zip`
 - **Estado**: `[ ]` pendiente
-- **Scope**: `Parcial_Cap1a6_<Grupo>.zip` (Q-01) con `parcial/` y `despliegue/` según el árbol del PDF; sin `.venv`, `__pycache__`, `.env`; `.git` según Q-15; nada de la raíz, `knowledge-base/`, `openspec/`, `.claude/`. Verificar: búsqueda de secretos y `alembic upgrade head` + `python seed.py` desde el zip extraído
+- **Scope**: `Parcial_Cap1a6_Las_chicas.zip` (Q-01: grupo "Las chicas") con `parcial/` y `despliegue/` según el árbol del PDF; sin `.venv`, `__pycache__`, `.env`; `.git` según Q-15; nada de la raíz, `knowledge-base/`, `openspec/`, `.claude/`. Verificar: búsqueda de secretos y `alembic upgrade head` + `python seed.py` desde el zip extraído
 - **Dependencias**: C-09, C-11 · **Governance**: ALTO (filtrar credenciales) · **Ej.**: requisito de entrega
 - **Leer antes**: `12` §Contenido del .zip y §Reglas duras; `10` (Q-01, Q-13, Q-15)
 
@@ -183,4 +183,4 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 
 Rutas de `knowledge-base/` abreviadas por número (`05` = `knowledge-base/05_reglas_de_negocio.md`).
 
-**Próximo change**: `C-12` (`empaquetado-zip`; C-11 hecho, grupo "Las chicas" → `Parcial_Cap1a6_Las chicas.zip`).
+**Próximo change**: `C-12` (`empaquetado-zip`; C-11 hecho, grupo "Las chicas" → `Parcial_Cap1a6_Las_chicas.zip`).

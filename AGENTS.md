@@ -55,7 +55,7 @@ La fuente de verdad del dominio vive en `knowledge-base/` (índice en [README.md
 
 > ⚠️ Preguntas de prioridad **Alta** abiertas en `10_preguntas_abiertas.md`:
 > - **Q-04**: nombres exactos de las variables de `Settings` (clave de firma, duración del token, costo bcrypt, cookie `Secure`, pool).
-> - Q-01 (grupo "Las chicas": zip `Parcial_Cap1a6_Las chicas.zip`) y Q-02 (VPS `187.127.58.90`, puerto 8101, URL `http://187.127.58.90:8101`, base `libreria` en el PostgreSQL del grupo; acceso por SSH con clave, sin secretos en el repo) ya están resueltas.
+> - Q-01 (grupo "Las chicas": zip `Parcial_Cap1a6_Las_chicas.zip`) y Q-02 (VPS `187.127.58.90`, puerto 8101, URL `http://187.127.58.90:8101`, base `libreria` en el PostgreSQL del grupo; acceso por SSH con clave, sin secretos en el repo) ya están resueltas.
 > - Q-03 (ubicación de `main.py`) ya está resuelta: `parcial/main.py` en la raíz (DD-08).
 
 ---
