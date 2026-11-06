@@ -87,7 +87,7 @@ El plan completo está en [CHANGES.md](CHANGES.md). Resumen:
 - **Orden del parcial**: `C-01..C-04 (hechos) → C-05 autenticacion → C-06 autorizacion-roles-eventos → C-07 libros-clientes-ventas → C-08 lecturas-sin-n1 → C-09 seed-casos-readme`.
 - **Rama de despliegue** (solo `despliegue/`, paralela tras C-01): `C-10 despliegue-imagen → C-11 despliegue-vps` (C-11 bloqueado por Q-02).
 - **Cierre**: `C-12 empaquetado-zip` (tras C-09 y C-11).
-- **Próximo change**: `C-05`.
+- **Próximo change**: `C-10 despliegue-imagen` (rama de despliegue; `C-11` bloqueado por Q-02, `C-12` tras C-11).
 
 **Antes de cualquier `/opsx:propose`**: leé [CHANGES.md](CHANGES.md), identificá las dependencias del change y sus archivos de "Leer antes".
 

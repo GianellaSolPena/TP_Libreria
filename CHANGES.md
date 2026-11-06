@@ -105,7 +105,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 - **Leer antes**: `03` (matriz); `05` §Autorización, §Roles, §Eventos; `04` §asignacion_rol; `10` (Q-05, Q-12)
 
 ### [C-07] `libros-clientes-ventas`
-- **Estado**: `[x]` completo (2026-11-05; pendiente de archivar)
+- **Estado**: `[x]` completo (2026-11-05; archivado)
 - **Scope**:
   - **Libros** (repos: libro sobre `SoftDeleteRepository`, `LibroAutor`, `MovimientoStock`): `POST /libros` con `autores` y `stock_inicial` (libro + autorías + "Stock inicial" en un bloque); `PATCH /libros/{id}` sólo título/precio (`stock` → 422); `DELETE` baja lógica 204; `POST /libros/{id}/reponer` (dado de baja → 409); `GET /libros/{id}/movimientos` (Q-18); reuso de ISBN tras la baja
   - **Punto único de escritura de stock** (alta, reposición, venta): actualiza `libro.stock` y agrega el movimiento con el `usuario_id` del actor
@@ -119,7 +119,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 - **Leer antes**: `05` §Stock, §Borrado lógico, §Ventas; `07` §Reposición y baja, §Venta; `04` §libro, movimiento_stock, cliente; `10` (Q-07, Q-08, Q-10, Q-18, Q-19)
 
 ### [C-08] `lecturas-sin-n1`
-- **Estado**: `[x]` completo (2026-11-05; pendiente de archivar)
+- **Estado**: `[x]` completo (2026-11-05; archivado)
 - **Scope**:
   - Precarga dentro del método del repositorio; detalle de venta con cantidad fija de consultas (incluye libro dado de baja); ninguna carga perezosa
   - Repaso final: todos los listados paginados con total filtrado; búsqueda ligada; ningún 500 por entrada inválida (incluye ids fuera de `int4`); handlers `async def` sin llamadas bloqueantes; `grep` de `AsyncSession`/`commit(` en `service.py`/`router.py` vacío (salvo DD-09)
@@ -129,7 +129,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 - **Notas de cierre (QA-03)**: C-08 dejó `parcial/test/C-15_detalle_consultas_fijas.http` y la evidencia `parcial/evidencia/C-15_consultas_detalle_venta.txt` sobre datos de prueba `c08.`; **C-09 regenera la evidencia C-15 tras `python seed.py` y retira `test/C-07_consultas_fijas.http` del TP**. Sin migración (sólo `lazy="raise_on_sql"` en los 26 `Relationship`).
 
 ### [C-09] `seed-casos-readme`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completo (2026-11-06; archivado en `openspec/changes/archive/2026-11-06-seed-casos-readme/`)
 - **Scope**:
   - `parcial/seed.py`: `TRUNCATE ... RESTART IDENTITY CASCADE` (DD-10) y datos del PDF: 3 editoriales, 3 géneros, 6 autores, 5 libros (IN-02/IN-03), Lucía con perfil, Tomás, Ana Paz con usuario; usuarios admin, admin2, vendedor, ana, nuevo (cambio obligatorio; contraseñas de mentira, Q-05); venta 1 de Lucía (69000.00) por vendedor; movimientos "Stock inicial" y salidas (Q-08); evento `SISTEMA` "Carga de los datos iniciales"
   - `parcial/test/*.http` para los casos C-01..C-16 (IN-04), respuesta esperada en comentario, varias sesiones (`# @name`, `# @no-cookie-jar`, `Cookie:`), precedidos de `python seed.py`; retirar `test/seed.sql` si queda obsoleto
@@ -138,6 +138,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 - **Verificación**: correr todos los `.http` contra uvicorn tras `python seed.py`
 - **Dependencias**: C-06, C-08 · **Governance**: BAJO · **Ej.**: evidencia de 3-8, requisito de entrega
 - **Leer antes**: `12` §Casos C y §README; `10` (IN-02..IN-05, Q-05, Q-06, Q-08)
+- **Notas de cierre**: C-09 dejó `parcial/seed.py`, 15 `.http` en `parcial/test/` (C-01..C-16 salvo C-14), evidencia C-14/C-15 en `parcial/evidencia/` y `parcial/README.md`; retirados los `.http` y `seed.sql` del TP.
 
 ### [C-10] `despliegue-imagen`
 - **Estado**: `[ ]` pendiente
@@ -171,15 +172,15 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 | C-02 | config-lifespan-health `[x]` | Ej.1 (6) | ALTO | C-01 |
 | C-03 | modelos-migraciones `[x]` | Ej.2 (10), Ej.7 | ALTO | C-02 |
 | C-04 | core-capas-catalogo `[x]` | Ej.6, Ej.3 | MEDIO | C-02 |
-| C-05 | autenticacion | Ej.4 (14), Ej.7 | CRITICO | C-03, C-04 |
-| C-06 | autorizacion-roles-eventos | Ej.5 (12), Ej.7 | CRITICO | C-05 |
-| C-07 | libros-clientes-ventas | Ej.6 (16), Ej.3, Ej.5, Ej.8 | ALTO | C-03, C-04, C-06 |
+| C-05 | autenticacion `[x]` | Ej.4 (14), Ej.7 | CRITICO | C-03, C-04 |
+| C-06 | autorizacion-roles-eventos `[x]` | Ej.5 (12), Ej.7 | CRITICO | C-05 |
+| C-07 | libros-clientes-ventas `[x]` | Ej.6 (16), Ej.3, Ej.5, Ej.8 | ALTO | C-03, C-04, C-06 |
 | C-08 | lecturas-sin-n1 `[x]` | Ej.8 (6), Ej.3 (8) | MEDIO | C-07 |
-| C-09 | seed-casos-readme | evidencia + entrega | BAJO | C-06, C-08 |
+| C-09 | seed-casos-readme `[x]` | evidencia + entrega | BAJO | C-06, C-08 |
 | C-10 | despliegue-imagen | Ej.9 (11) | ALTO | C-01 |
 | C-11 | despliegue-vps | Ej.10 (7) | ALTO | C-10 (+ Q-02) |
 | C-12 | empaquetado-zip | entrega | ALTO | C-09, C-11 |
 
 Rutas de `knowledge-base/` abreviadas por número (`05` = `knowledge-base/05_reglas_de_negocio.md`).
 
-**Próximo change**: `C-05` (`autenticacion`).
+**Próximo change**: `C-10` (`despliegue-imagen`).

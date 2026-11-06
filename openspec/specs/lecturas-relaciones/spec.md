@@ -33,18 +33,18 @@ El detalle de una venta (`GET /ventas/{id}` y la respuesta de `POST /ventas`), c
 
 #### Scenario: Evidencia entregable
 - **WHEN** se revisa `parcial/evidencia/`
-- **THEN** contiene el fragmento de consola con las consultas del detalle de una venta de 2 renglones y de otra de 4
+- **THEN** contiene el fragmento de consola con las consultas del detalle de la venta 1 de los datos iniciales (2 renglones) y de una venta de 4 renglones creada en el caso C-15 después de `python seed.py`, pedidos por el mismo usuario, sin datos de prueba de changes anteriores
 
 ### Requirement: Ninguna lectura depende de la carga perezosa
-Ninguna relación de los modelos SHALL cargarse en forma diferida al accederla: si una lectura accede a una relación que no fue precargada, el sistema MUST fallar de forma explícita en lugar de emitir una consulta. Todas las respuestas verificadas en los casos de los changes anteriores MUST seguir respondiendo igual.
+Ninguna relación de los modelos SHALL cargarse en forma diferida al accederla: si una lectura accede a una relación que no fue precargada, el sistema MUST fallar de forma explícita en lugar de emitir una consulta. Todas las respuestas verificadas en los casos de prueba MUST seguir respondiendo igual.
 
 #### Scenario: Relación no precargada
 - **WHEN** un método de lectura devuelve una entidad sin precargar una relación y algo intenta recorrerla
 - **THEN** no se emite ninguna consulta diferida: si los datos no están ya en la sesión, la lectura falla con un error que identifica la relación no precargada
 
 #### Scenario: Casos anteriores sin regresión
-- **WHEN** se re-ejecutan los casos `.http` de autenticación, autorización, libros, clientes y ventas
-- **THEN** cada petición responde con el mismo código y cuerpo esperados que antes del cambio
+- **WHEN** se corren los archivos de casos C-01..C-16 de `parcial/test/`, cada uno precedido de `python seed.py`
+- **THEN** cada petición responde con el código y el contenido esperados de su comentario y ninguna termina en 500
 
 ### Requirement: Handlers asincrónicos sin llamadas bloqueantes
 Todos los handlers de rutas SHALL declararse `async def` y MUST NOT ejecutar llamadas bloqueantes en el bucle de eventos; el cálculo y la verificación de bcrypt MUST correr fuera del bucle, y el aviso del comprobante MUST esperar con una pausa asincrónica.
