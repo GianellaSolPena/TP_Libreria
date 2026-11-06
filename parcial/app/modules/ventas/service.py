@@ -42,9 +42,11 @@ async def crear(uow: VentasUnitOfWork, datos: VentaCreate, actor: Usuario) -> Ve
         ]
         total = sum((r.cantidad * r.precio_unitario for r in renglones), Decimal("0"))
         venta = Venta(cliente_id=datos.cliente_id, total=total)
-        venta.renglones = renglones
         # Un cliente inexistente lo rechaza la FK en este flush (23503 -> 409 en el router).
         await uow.ventas.add(venta)
+        for renglon in renglones:
+            renglon.venta_id = venta.id
+        await uow.renglones.add_varios(renglones)
 
         # Siempre en el mismo orden (libro_id) para que ventas simultáneas no se interbloqueen.
         for renglon in sorted(renglones, key=lambda r: r.libro_id):

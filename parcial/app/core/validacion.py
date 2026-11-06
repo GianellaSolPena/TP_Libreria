@@ -4,9 +4,16 @@ from pydantic import AfterValidator, StringConstraints
 
 
 def rechazar_nulo(valor: str) -> str:
-    """PostgreSQL no admite U+0000 en text/varchar: se rechaza en el contrato (422)."""
+    """Rechaza en el contrato (422) los textos que la base no puede guardar.
+
+    PostgreSQL no admite U+0000 en text/varchar, y un sustituto UTF-16 suelto (U+D800-U+DFFF)
+    no se puede codificar en UTF-8 (ni para la base ni para repetirlo en la respuesta).
+    Un par válido (p. ej. un emoji) llega como un solo punto de código y no se ve afectado.
+    """
     if "\x00" in valor:
         raise ValueError("El texto no puede contener el carácter nulo (U+0000)")
+    if any("\ud800" <= c <= "\udfff" for c in valor):
+        raise ValueError("El texto no puede contener sustitutos UTF-16 sueltos (U+D800 a U+DFFF)")
     return valor
 
 

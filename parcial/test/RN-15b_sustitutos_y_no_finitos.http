@@ -1,0 +1,128 @@
+@host = http://localhost:8000
+
+@emailAdmin = admin@example.com
+@passwordAdmin = admin1234
+
+# ============================================================================
+# RN-15b (extra, no es un caso C del PDF) · sustitutos UTF-16 sueltos y números no finitos → 422, nunca 500
+# ============================================================================
+# Completa RN-15_caracter_nulo.http. Dos familias de entradas que antes terminaban en 500:
+#   1) Un sustituto UTF-16 suelto (U+D800 a U+DFFF; en JSON viaja como el escape \ud800) en cualquier
+#      texto: no se puede codificar en UTF-8, ni para la base ni para repetirlo en la respuesta.
+#   2) Los números JSON sin comillas NaN, Infinity, -Infinity y 1e400 (que desborda a infinito) en
+#      cualquier campo numérico: Pydantic ya los rechazaba, pero el 422 repetía el valor y no se
+#      podía serializar.
+# Ahora todos responden 422 con la forma estándar de FastAPI ({"detail": [{"type", "loc", "msg",
+# "input", ...}]}); el valor no codificable se muestra como texto (\ud800 → "\\ud800", NaN → "nan").
+# Un emoji (un par válido) NO es un sustituto suelto y se acepta.
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head            (base migrada, una sola vez)
+#   2) python seed.py                  (datos iniciales; repetir antes de cada archivo de casos)
+#   3) uvicorn main:app                (servidor arriba en http://localhost:8000)
+# Usuarios del seed: ver README.md. Este archivo no necesita psql.
+
+### Login del ADMIN
+# @name loginAdmin
+# @no-cookie-jar
+# Esperado: 200 {"mensaje": "Sesión iniciada", "debe_cambiar_password": false, "expira_en_segundos": 1800}
+# y Set-Cookie: access_token=...
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "password": "{{passwordAdmin}}"}
+
+### RN-15b-a · Alta de libro con un sustituto suelto en el título (ADMIN)
+# @no-cookie-jar
+# Esperado: 422 (loc: ["body", "titulo"]). Antes del arreglo era 500.
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "RN15B-1", "titulo": "Rayuela\ud800", "precio": "10.00", "stock_inicial": 1, "editorial_id": 1, "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+### RN-15b-b · PATCH de libro con un sustituto suelto en el título (ADMIN)
+# @no-cookie-jar
+# Esperado: 422 (loc: ["body", "titulo"], type: value_error). Antes del arreglo era 500.
+PATCH {{host}}/libros/1
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"titulo": "Ficciones\ud800"}
+
+### RN-15b-c · Login con un sustituto suelto en la contraseña
+# @no-cookie-jar
+# Esperado: 422 (loc: ["body", "password"]). No cuenta como intento fallido. Antes del arreglo era 500.
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "password": "admin\ud8001234"}
+
+### RN-15b-d · Registro con un sustituto suelto en el nombre
+# @no-cookie-jar
+# Esperado: 422 (loc: ["body", "nombre"]). Antes del arreglo era 500.
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{"email": "sustituto@example.com", "nombre": "Ana\ud800", "password": "clave1234"}
+
+### RN-15b-e · Perfil de cliente con un sustituto suelto en el teléfono (ADMIN)
+# @no-cookie-jar
+# Esperado: 422 (loc: ["body", "telefono"], type: value_error). Antes del arreglo era 500.
+POST {{host}}/clientes/1/perfil
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"telefono": "1155\ud800"}
+
+### RN-15b-f · Clave sobrante cuyo nombre trae un sustituto suelto
+# @no-cookie-jar
+# Esperado: 422 (loc: ["body"]). El nombre de la clave no se repite tal cual. Antes del arreglo era 500.
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "password": "{{passwordAdmin}}", "x\ud800": 1}
+
+### RN-15b-g · Alta de libro con precio NaN (ADMIN)
+# @no-cookie-jar
+# Esperado: 422 (loc: ["body", "precio"], type: finite_number, input: "nan"). Antes del arreglo era 500.
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "RN15B-2", "titulo": "t", "precio": NaN, "stock_inicial": 1, "editorial_id": 1, "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+### RN-15b-h · Alta de libro con precio Infinity (ADMIN)
+# @no-cookie-jar
+# Esperado: 422 (loc: ["body", "precio"], type: finite_number, input: "inf"). Antes del arreglo era 500.
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "RN15B-3", "titulo": "t", "precio": Infinity, "stock_inicial": 1, "editorial_id": 1, "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+### RN-15b-i · Alta de libro con precio 1e400, que desborda a infinito (ADMIN)
+# @no-cookie-jar
+# Esperado: 422 (loc: ["body", "precio"], type: finite_number). Antes del arreglo era 500.
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"isbn": "RN15B-4", "titulo": "t", "precio": 1e400, "stock_inicial": 1, "editorial_id": 1, "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+### RN-15b-j · Venta con cantidad NaN (ADMIN)
+# @no-cookie-jar
+# Esperado: 422 (loc: ["body", "renglones", 0, "cantidad"], type: finite_number). No crea la venta. Antes del arreglo era 500.
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"cliente_id": 1, "renglones": [{"libro_id": 1, "cantidad": NaN}]}
+
+### RN-15b-k (control) · Alta de género con un emoji, que es un par válido (ADMIN)
+# @no-cookie-jar
+# Esperado: 201 con "nombre": "Ensayo 😀" (un emoji llega como un solo punto de código, no es un sustituto suelto).
+POST {{host}}/generos
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"nombre": "Ensayo 😀"}

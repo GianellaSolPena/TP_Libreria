@@ -7,6 +7,19 @@ from app.modules.clientes.models import Cliente
 from app.modules.ventas.models import RenglonVenta, Venta
 
 
+class RenglonVentaRepository(BaseRepository[RenglonVenta]):
+    """Renglones de una venta: sólo alta (el detalle se lee con la venta, en `get_detalle`)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(session, RenglonVenta)
+
+    async def add_varios(self, renglones: list[RenglonVenta]) -> list[RenglonVenta]:
+        """Alta de todos los renglones con UN solo `flush` (un INSERT en lote, sin `commit`)."""
+        self.session.add_all(renglones)
+        await self.session.flush()
+        return renglones
+
+
 class VentaRepository(BaseRepository[Venta]):
     """Las ventas no se modifican ni se borran: sólo alta y lecturas."""
 

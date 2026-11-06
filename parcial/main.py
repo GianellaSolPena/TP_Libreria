@@ -4,11 +4,13 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, Depends, FastAPI
+from fastapi.exceptions import RequestValidationError
 
 from app.core import security
 from app.core.config import get_settings
 from app.core.database import create_engine, create_session_factory
 from app.core.dependencies import exigir_password_al_dia
+from app.core.errores import validacion_a_422
 from app.modules import models as _modelos  # noqa: F401  (registra TODOS los mapeos, incl. usuarios)
 from app.modules.autores import router as autores
 from app.modules.clientes.router import router as clientes_router
@@ -55,6 +57,8 @@ app = FastAPI(
     description="Catálogo, clientes y ventas",
     lifespan=lifespan,
 )
+# Mismo 422 de FastAPI, pero nunca repite una entrada que no se pueda serializar (RN-15).
+app.add_exception_handler(RequestValidationError, validacion_a_422)
 
 # Dos grupos (D4). `protegido` declara UNA vez el control del cambio obligatorio de
 # contrasena: FastAPI suma dependencias y no las resta, por eso /auth/cambiar-password

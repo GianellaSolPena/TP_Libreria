@@ -139,9 +139,9 @@ app/
         # cada módulo: models · schemas · repository · service · unit_of_work · router
 migrations/              # Alembic (plantilla asincrónica) y versions/ (0001 a 0004)
 test/                    # un .http por caso C-01 a C-16 (salvo C-14), los extra RN-02_correo_cliente_mayusculas.http,
-                         # RN-03_rol_ya_vigente.http y RN-15_caracter_nulo.http, y solo_agregado.sql
+                         # RN-03_rol_ya_vigente.http, RN-15_caracter_nulo.http y RN-15b_sustitutos_y_no_finitos.http, y solo_agregado.sql
 evidencia/               # migraciones_ida_y_vuelta.txt; C-01_corrida.txt a C-13_corrida.txt, C-16_corrida.txt,
-                         # RN-02_corrida.txt y RN-15_corrida.txt; C-14_solo_agregado.txt y C-14_captura_psql.png;
+                         # RN-02_corrida.txt, RN-15_corrida.txt y RN-15b_corrida.txt; C-14_solo_agregado.txt y C-14_captura_psql.png;
                          # C-15_consultas_detalle_venta.txt
 ```
 
@@ -202,6 +202,7 @@ comprobaciones adicionales a los casos del enunciado.
 | RN-02 (extra) | `RN-02_correo_cliente_mayusculas.http` | | Cliente dado de alta como `Mayus@Example.com` se guarda en minúsculas; el registro con ese correo (en minúsculas o mayúsculas) → 409 | `evidencia/RN-02_corrida.txt` |
 | RN-03 (extra) | `RN-03_rol_ya_vigente.http` | | Asignar un rol que el usuario ya tiene vigente → 409 «El usuario ya tiene ese rol vigente» | |
 | RN-15 (extra) | `RN-15_caracter_nulo.http` | | El carácter U+0000 en cuerpos y en `?titulo=` → 422, nunca 500 | `evidencia/RN-15_corrida.txt` |
+| RN-15b (extra) | `RN-15b_sustitutos_y_no_finitos.http` | | Un sustituto UTF-16 suelto en un texto (escape `\ud800`) y los números `NaN`, `Infinity` y `1e400` sin comillas → 422, nunca 500; un emoji sigue siendo válido (201) | `evidencia/RN-15b_corrida.txt` |
 
 C-14 se corre con `psql -U <usuario> -d <base> -v ON_ERROR_STOP=0 -f test/solo_agregado.sql` (con
 Docker: `docker exec -i <contenedor> psql -U <usuario> -d <base> < test/solo_agregado.sql`). Es

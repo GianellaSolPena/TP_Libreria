@@ -1,0 +1,220 @@
+RN-15b · Sustitutos UTF-16 sueltos y números no finitos en la entrada -> 422
+==========================================================================
+
+Cómo se obtuvo (2026-11-06):
+  - Base: contenedor descartable postgres:16-alpine (PostgreSQL 16.15), migrada con `alembic upgrade head` y sembrada con `python seed.py` justo antes de esta corrida.
+  - Python 3.13.15 del venv de parcial/; servidor `python -m uvicorn main:app` en un puerto de prueba (el 8000 lo ocupa otro proyecto), configurado con variables de entorno temporales; se usa 127.0.0.1 en vez de localhost porque en esta máquina localhost añade ~2 s por IPv6.
+  - Peticiones: las de parcial/test/RN-15b_sustitutos_y_no_finitos.http, sin modificarlo, ejecutadas en orden con un cliente HTTP temporal (httpx, no versionado) que
+    sustituye `@host`, resuelve {{loginAdmin.response.headers.Set-Cookie}} (sólo la parte access_token=...) y no guarda cookies entre peticiones (equivale a # @no-cookie-jar).
+  - El valor del JWT de las cookies se reemplazó por <jwt> (el resto de la respuesta va cruda). Por claridad, la URL de las peticiones se muestra como http://127.0.0.1:8001.
+  - Cada petición muestra su comentario `# Esperado:` del .http, la petición enviada y la respuesta real.
+  - Antes del arreglo (misma base y mismo servidor, 2026-11-06) las 27 entradas de la sonda de este change respondían 500; ahora responden 422.
+
+------------------------------------------------------------------------------
+Login del ADMIN
+# Esperado: 200 {"mensaje": "Sesión iniciada", "debe_cambiar_password": false, "expira_en_segundos": 1800}
+# y Set-Cookie: access_token=...
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin1234"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 855 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+RN-15b-a · Alta de libro con un sustituto suelto en el título (ADMIN)
+# Esperado: 422 (loc: ["body", "titulo"]). Antes del arreglo era 500.
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/libros
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"isbn": "RN15B-1", "titulo": "Rayuela\ud800", "precio": "10.00", "stock_inicial": 1, "editorial_id": 1, "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 81 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"string_unicode","loc":["body","titulo"],"msg":"Input should be a valid string, unable to parse raw data as a unicode string","input":"Rayuela\\ud800"}]}
+
+------------------------------------------------------------------------------
+RN-15b-b · PATCH de libro con un sustituto suelto en el título (ADMIN)
+# Esperado: 422 (loc: ["body", "titulo"], type: value_error). Antes del arreglo era 500.
+
+>>> PETICIÓN
+PATCH http://127.0.0.1:8001/libros/1
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"titulo": "Ficciones\ud800"}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 22 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"value_error","loc":["body","titulo"],"msg":"Value error, El texto no puede contener sustitutos UTF-16 sueltos (U+D800 a U+DFFF)","input":"Ficciones\\ud800","ctx":{"error":{}}}]}
+
+------------------------------------------------------------------------------
+RN-15b-c · Login con un sustituto suelto en la contraseña
+# Esperado: 422 (loc: ["body", "password"]). No cuenta como intento fallido. Antes del arreglo era 500.
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin\ud8001234"}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"value_error","loc":["body","password"],"msg":"Value error, El texto no puede contener sustitutos UTF-16 sueltos (U+D800 a U+DFFF)","input":"admin\\ud8001234","ctx":{"error":{}}}]}
+
+------------------------------------------------------------------------------
+RN-15b-d · Registro con un sustituto suelto en el nombre
+# Esperado: 422 (loc: ["body", "nombre"]). Antes del arreglo era 500.
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/registro
+Content-Type: application/json
+
+{"email": "sustituto@example.com", "nombre": "Ana\ud800", "password": "clave1234"}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"string_unicode","loc":["body","nombre"],"msg":"Input should be a valid string, unable to parse raw data as a unicode string","input":"Ana\\ud800"}]}
+
+------------------------------------------------------------------------------
+RN-15b-e · Perfil de cliente con un sustituto suelto en el teléfono (ADMIN)
+# Esperado: 422 (loc: ["body", "telefono"], type: value_error). Antes del arreglo era 500.
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/clientes/1/perfil
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"telefono": "1155\ud800"}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 51 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"value_error","loc":["body","telefono"],"msg":"Value error, El texto no puede contener sustitutos UTF-16 sueltos (U+D800 a U+DFFF)","input":"1155\\ud800","ctx":{"error":{}}}]}
+
+------------------------------------------------------------------------------
+RN-15b-f · Clave sobrante cuyo nombre trae un sustituto suelto
+# Esperado: 422 (loc: ["body"]). El nombre de la clave no se repite tal cual. Antes del arreglo era 500.
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin1234", "x\ud800": 1}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 5 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"string_unicode","loc":["body"],"msg":"Input should be a valid string, unable to parse raw data as a unicode string","input":"x\\ud800"}]}
+
+------------------------------------------------------------------------------
+RN-15b-g · Alta de libro con precio NaN (ADMIN)
+# Esperado: 422 (loc: ["body", "precio"], type: finite_number, input: "nan"). Antes del arreglo era 500.
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/libros
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"isbn": "RN15B-2", "titulo": "t", "precio": NaN, "stock_inicial": 1, "editorial_id": 1, "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 17 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"finite_number","loc":["body","precio"],"msg":"Input should be a finite number","input":"nan"}]}
+
+------------------------------------------------------------------------------
+RN-15b-h · Alta de libro con precio Infinity (ADMIN)
+# Esperado: 422 (loc: ["body", "precio"], type: finite_number, input: "inf"). Antes del arreglo era 500.
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/libros
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"isbn": "RN15B-3", "titulo": "t", "precio": Infinity, "stock_inicial": 1, "editorial_id": 1, "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 17 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"finite_number","loc":["body","precio"],"msg":"Input should be a finite number","input":"inf"}]}
+
+------------------------------------------------------------------------------
+RN-15b-i · Alta de libro con precio 1e400, que desborda a infinito (ADMIN)
+# Esperado: 422 (loc: ["body", "precio"], type: finite_number). Antes del arreglo era 500.
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/libros
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"isbn": "RN15B-4", "titulo": "t", "precio": 1e400, "stock_inicial": 1, "editorial_id": 1, "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 16 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"finite_number","loc":["body","precio"],"msg":"Input should be a finite number","input":"inf"}]}
+
+------------------------------------------------------------------------------
+RN-15b-j · Venta con cantidad NaN (ADMIN)
+# Esperado: 422 (loc: ["body", "renglones", 0, "cantidad"], type: finite_number). No crea la venta. Antes del arreglo era 500.
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/ventas
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"cliente_id": 1, "renglones": [{"libro_id": 1, "cantidad": NaN}]}
+
+<<< RESPUESTA
+HTTP 422  (tiempo: 23 ms)
+Content-Type: application/json
+
+{"detail":[{"type":"finite_number","loc":["body","renglones",0,"cantidad"],"msg":"Input should be a finite number","input":"nan"}]}
+
+------------------------------------------------------------------------------
+RN-15b-k (control) · Alta de género con un emoji, que es un par válido (ADMIN)
+# Esperado: 201 con "nombre": "Ensayo 😀" (un emoji llega como un solo punto de código, no es un sustituto suelto).
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/generos
+Content-Type: application/json
+Cookie: access_token=<jwt>
+
+{"nombre": "Ensayo 😀"}
+
+<<< RESPUESTA
+HTTP 201  (tiempo: 51 ms)
+Content-Type: application/json
+
+{"id":4,"nombre":"Ensayo 😀"}
+
+------------------------------------------------------------------------------
+
+Resultado: coincide con todos los # Esperado: los diez casos con sustituto suelto o número no finito (título, PATCH de título, contraseña, nombre, teléfono, clave sobrante,
+precio NaN / Infinity / 1e400, cantidad NaN) responden 422 con la forma estándar y ningún 500; el control con un emoji responde 201.
+Comprobado además por psql sobre la misma base: intento_acceso tiene una sola fila (el login del ADMIN: el login con sustituto no cuenta como intento fallido), venta sigue en 1 fila
+(la venta con cantidad NaN no se creó), no hay libros RN15B* ni el usuario del registro con sustituto, y la consola de uvicorn no registró ninguna traza.
