@@ -1,0 +1,53 @@
+@host = http://localhost:8000
+
+@emailVendedor = vendedor@example.com
+@passwordVendedor = vendedor1234
+
+# ============================================================================
+# RN-02 (extra, no es un caso C del PDF) · El correo del cliente se normaliza → el registro da 409
+# ============================================================================
+# RN-02: "Si ya existe un cliente con ese correo, el registro da 409 y no se apropia de esa
+# ficha". El correo del cliente se recorta y pasa a minúsculas igual que el de las cuentas;
+# así una ficha dada de alta por el personal como Mayus@Example.com choca con el registro de
+# mayus@example.com (antes no chocaba y el registro creaba una segunda ficha).
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head            (base migrada, una sola vez)
+#   2) python seed.py                  (datos iniciales; repetir antes de cada archivo de casos)
+#   3) uvicorn main:app                (servidor arriba en http://localhost:8000)
+# Este archivo no necesita psql.
+
+### Login del VENDEDOR
+# @name loginVendedor
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailVendedor}}", "password": "{{passwordVendedor}}"}
+
+### RN-02a · El personal da de alta un cliente con el correo en mayúsculas
+# @no-cookie-jar
+# Esperado: 201 {"id": 4, "nombre": "Mayus", "email": "mayus@example.com", "perfil": null}
+# (el correo se guarda normalizado a minúsculas)
+POST {{host}}/clientes
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+Content-Type: application/json
+
+{"nombre": "Mayus", "email": "Mayus@Example.com"}
+
+### RN-02b · Registro con el mismo correo en minúsculas
+# @no-cookie-jar
+# Esperado: 409 {"detail": "Ya existe una cuenta o un cliente con ese correo"}
+# El registro no se apropia de la ficha del cliente 4 ni crea una segunda.
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{"email": "mayus@example.com", "nombre": "Mayus", "password": "mayus12345"}
+
+### RN-02c · Registro con el correo todo en mayúsculas
+# @no-cookie-jar
+# Esperado: 409 con el mismo mensaje propio
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{"email": "MAYUS@EXAMPLE.COM", "nombre": "Mayus", "password": "mayus12345"}

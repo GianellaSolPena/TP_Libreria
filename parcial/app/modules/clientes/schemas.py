@@ -1,21 +1,11 @@
-from typing import Annotated
-
 from pydantic import (
-    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
-    StringConstraints,
     model_validator,
 )
 
-from app.core.validacion import TextoSinNulo, rechazar_nulo
-
-Email = Annotated[
-    str,
-    AfterValidator(rechazar_nulo),
-    StringConstraints(min_length=3, pattern=r"^[^@\s]+@[^@\s]+$"),
-]
+from app.core.validacion import Email, TextoSinNulo
 
 
 class ClienteCreate(BaseModel):

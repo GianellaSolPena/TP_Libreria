@@ -7,26 +7,11 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    StringConstraints,
 )
 
 from app.core.security import PasswordBcrypt
-from app.core.validacion import TextoSinNulo, rechazar_nulo
+from app.core.validacion import Email, TextoSinNulo
 from app.modules.usuarios.models import Rol
-
-
-def _normalizar_email(valor: str) -> str:
-    return valor.strip().lower()
-
-
-# Mismo patron que clientes/schemas.py; se recorta y pasa a minusculas para que
-# Ana@Example.com y ana@example.com no sean dos cuentas ni dos contadores.
-Email = Annotated[
-    str,
-    AfterValidator(rechazar_nulo),
-    StringConstraints(min_length=3, max_length=254, pattern=r"^[^@\s]+@[^@\s]+$"),
-    AfterValidator(_normalizar_email),
-]
 
 
 class RegistroIn(BaseModel):

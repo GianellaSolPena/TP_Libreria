@@ -1,0 +1,80 @@
+RN-02 · El correo del cliente se normaliza: registro con el mismo correo -> 409
+===============================================================================
+
+Cómo se obtuvo (2026-11-06):
+  - Base: contenedor descartable postgres:16-alpine (PostgreSQL 16.15), sembrada con `python seed.py` justo antes de esta corrida.
+  - Python 3.13.15 del venv de parcial/; servidor `python -m uvicorn main:app --port 8001` (el 8000 lo ocupa otro proyecto); se usa 127.0.0.1 en vez de localhost porque en esta máquina localhost añade ~2 s por IPv6.
+  - Peticiones: las de parcial/test/RN-02_correo_cliente_mayusculas.http, sin modificarlo, ejecutadas en orden con un cliente HTTP temporal (httpx, no versionado) que
+    sustituye `@host` por http://127.0.0.1:8001, resuelve {{login*.response.headers.Set-Cookie}} (sólo la parte access_token=...) y
+    {{x.response.body.$.campo}}, y no guarda cookies entre peticiones (equivale a # @no-cookie-jar).
+  - El valor del JWT de las cookies se reemplazó por <jwt> (el resto de la respuesta va cruda).
+  - Cada petición muestra su comentario `# Esperado:` del .http, la petición enviada y la respuesta real.
+
+------------------------------------------------------------------------------
+Login del VENDEDOR
+# Esperado: 200
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/login
+Content-Type: application/json
+
+{"email": "vendedor@example.com", "password": "vendedor1234"}
+
+<<< RESPUESTA
+HTTP 200  (tiempo: 26 ms)
+Content-Type: application/json
+Set-Cookie: access_token=<jwt>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+
+{"mensaje":"Sesión iniciada","debe_cambiar_password":false,"expira_en_segundos":1800}
+
+------------------------------------------------------------------------------
+RN-02a · El personal da de alta un cliente con el correo en mayúsculas
+# Esperado: 201 {"id": 4, "nombre": "Mayus", "email": "mayus@example.com", "perfil": null}
+# (el correo se guarda normalizado a minúsculas)
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/clientes
+Cookie: access_token=<jwt>
+Content-Type: application/json
+
+{"nombre": "Mayus", "email": "Mayus@Example.com"}
+
+<<< RESPUESTA
+HTTP 201  (tiempo: 14 ms)
+Content-Type: application/json
+
+{"id":4,"nombre":"Mayus","email":"mayus@example.com","perfil":null}
+
+------------------------------------------------------------------------------
+RN-02b · Registro con el mismo correo en minúsculas
+# Esperado: 409 {"detail": "Ya existe una cuenta o un cliente con ese correo"}
+# El registro no se apropia de la ficha del cliente 4 ni crea una segunda.
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/registro
+Content-Type: application/json
+
+{"email": "mayus@example.com", "nombre": "Mayus", "password": "mayus12345"}
+
+<<< RESPUESTA
+HTTP 409  (tiempo: 8 ms)
+Content-Type: application/json
+
+{"detail":"Ya existe una cuenta o un cliente con ese correo"}
+
+------------------------------------------------------------------------------
+RN-02c · Registro con el correo todo en mayúsculas
+# Esperado: 409 con el mismo mensaje propio
+
+>>> PETICIÓN
+POST http://127.0.0.1:8001/auth/registro
+Content-Type: application/json
+
+{"email": "MAYUS@EXAMPLE.COM", "nombre": "Mayus", "password": "mayus12345"}
+
+<<< RESPUESTA
+HTTP 409  (tiempo: 12 ms)
+Content-Type: application/json
+
+{"detail":"Ya existe una cuenta o un cliente con ese correo"}
+
