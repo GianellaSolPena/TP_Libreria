@@ -16,7 +16,10 @@ desde esta carpeta (`despliegue/`). Sin Docker Compose.
   `evidencia/` ni `__pycache__`:
 
   ```bash
-  tar -C despliegue --exclude=.env --exclude='.env.*' --exclude=.venv --exclude=evidencia       --exclude=__pycache__ --exclude='*.pyc' -cf - .     | ssh <usuario>@187.127.58.90 'mkdir -p /root/libreria/despliegue && tar -C /root/libreria/despliegue -xf -'
+  tar -C despliegue --exclude=.env --exclude='.env.*' --exclude=.venv --exclude=evidencia \
+    --exclude=__pycache__ --exclude='*.pyc' -cf - . \
+    | ssh <usuario>@187.127.58.90 \
+      'mkdir -p /root/libreria/despliegue && tar -C /root/libreria/despliegue -xf -'
   ```
 
 - **Base de datos**: el PostgreSQL del grupo en Easypanel (servicio `grupo1-chicas_db`,
@@ -39,8 +42,10 @@ desde esta carpeta (`despliegue/`). Sin Docker Compose.
 
   ```bash
   docker build -t libreria .
-  docker run -d --name libreria -p 8101:8000 --restart unless-stopped     --network easypanel-grupo1-chicas --env-file /root/libreria/libreria.env libreria
-  docker exec libreria sh -c 'psql -v ON_ERROR_STOP=1 "$(echo "$DATABASE_URL" | sed "s/+asyncpg//")" -f test/seed.sql'
+  docker run -d --name libreria -p 8101:8000 --restart unless-stopped \
+    --network easypanel-grupo1-chicas --env-file /root/libreria/libreria.env libreria
+  docker exec libreria \
+  sh -c 'psql -v ON_ERROR_STOP=1 "$(echo "$DATABASE_URL" | sed "s/+asyncpg//")" -f test/seed.sql'
   ```
 
   El único agregado respecto del `docker run` de la sección 3 es `--network` y el puerto 8101.
@@ -104,7 +109,8 @@ Base `python:3.12-alpine`; todas las dependencias bajan como wheels (no se compi
 ## 3. Correr el contenedor
 
 ```bash
-docker run -d --name libreria -p 8000:8000 --restart unless-stopped --env-file libreria.env libreria
+docker run -d --name libreria -p 8000:8000 --restart unless-stopped \
+  --env-file libreria.env libreria
 ```
 
 En Linux, para que `host.docker.internal` resuelva, agregar
@@ -124,7 +130,8 @@ La imagen trae el cliente `psql`. El comando carga `test/seed.sql` (se puede rep
 tablas y vuelve a cargar):
 
 ```bash
-docker exec libreria sh -c 'psql -v ON_ERROR_STOP=1 "$(echo "$DATABASE_URL" | sed "s/+asyncpg//")" -f test/seed.sql'
+docker exec libreria \
+  sh -c 'psql -v ON_ERROR_STOP=1 "$(echo "$DATABASE_URL" | sed "s/+asyncpg//")" -f test/seed.sql'
 ```
 
 Comprobación: `curl http://127.0.0.1:8000/libros/` devuelve 5 libros.
@@ -134,7 +141,8 @@ Comprobación: `curl http://127.0.0.1:8000/libros/` devuelve 5 libros.
 ```bash
 docker build -t libreria .
 docker rm -f libreria
-docker run -d --name libreria -p 8000:8000 --restart unless-stopped --env-file libreria.env libreria
+docker run -d --name libreria -p 8000:8000 --restart unless-stopped \
+  --env-file libreria.env libreria
 ```
 
 Los datos viven en la base, no en el contenedor: recrearlo no los pierde, y las migraciones ya

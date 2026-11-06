@@ -187,7 +187,7 @@ F-04 re-empaquetado-zip (F-01..F-03; bloqueado hasta pedido explícito)
 - **Leer antes**: `05` (RN-15); `09`; consigna Ej. 3; `parcial/app/core/errores.py`; `schemas.py` de cada módulo
 
 ### [F-02] `evidencia-casos-reproducible`
-- **Estado**: `[ ]`
+- **Estado**: `[x]` (pendiente del usuario: rehacer `C-14_captura_psql.png` sobre PostgreSQL 16)
 - **Scope** (sin código; sólo `parcial/evidencia/`):
   - En un contenedor descartable `postgres:16-alpine` (contraseña aleatoria fuera del repo; **nunca** la base local del usuario): `alembic upgrade head` → `downgrade base` → `upgrade head` sobre base vacía, salida guardada en `parcial/evidencia/`
   - Correr de verdad los casos que escriben datos (C-02, C-05, C-07, C-08, C-10..C-13, partes de C-16) contra un servidor de prueba y comparar con los comentarios de respuesta esperada
@@ -198,7 +198,7 @@ F-04 re-empaquetado-zip (F-01..F-03; bloqueado hasta pedido explícito)
 - **Leer antes**: `12` §Casos C; `parcial/README.md`; `parcial/test/*.http`
 
 ### [F-03] `pulido-estructura-y-docs`
-- **Estado**: `[ ]`
+- **Estado**: `[x]` (DD-11: `dependencies.py` se queda en `app/core/`; opcional hecho: sólo el `.http` de RN-03)
 - **Scope**:
   - Revisar `parcial/app/core/dependencies.py` (arma `UnitOfWork`/repos de usuarios e importa de `app.modules.usuarios`) contra la "Estructura obligatoria" de la consigna: moverlo al módulo `usuarios` si el PDF lo implica; si no, documentar la decisión (DD-xx)
   - `despliegue/DEPLOY.md`: partir los comandos largos con `\`
@@ -235,10 +235,10 @@ F-04 re-empaquetado-zip (F-01..F-03; bloqueado hasta pedido explícito)
 | C-11 | despliegue-vps `[x]` | Ej.10 (7) | ALTO | C-10 (+ Q-02) |
 | C-12 | empaquetado-zip `[x]` | entrega | ALTO | C-09, C-11 |
 | F-01 | entradas-invalidas-nul `[x]` | Ej.3 (RN-15) | MEDIO | — |
-| F-02 | evidencia-casos-reproducible `[ ]` | evidencia | BAJO | F-01 |
-| F-03 | pulido-estructura-y-docs `[ ]` | estructura + docs | BAJO | — |
+| F-02 | evidencia-casos-reproducible `[x]` | evidencia | BAJO | F-01 |
+| F-03 | pulido-estructura-y-docs `[x]` | estructura + docs | BAJO | — |
 | F-04 | re-empaquetado-zip `[ ]` (bloqueado) | entrega | ALTO | F-01, F-02, F-03 |
 
 Rutas de `knowledge-base/` abreviadas por número (`05` = `knowledge-base/05_reglas_de_negocio.md`).
 
-**Próximo change**: `F-02 evidencia-casos-reproducible` (F-01 hecho; correcciones post-auditoría F-01..F-04; F-04 rearma el zip sólo con pedido explícito).
+**Próximo change**: `F-04 re-empaquetado-zip` (F-01, F-02 y F-03 hechos; **bloqueado** hasta pedido explícito de rearmar el zip).

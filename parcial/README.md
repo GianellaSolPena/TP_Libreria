@@ -138,8 +138,11 @@ app/
     └── ventas/          # incluye RenglonVenta
         # cada módulo: models · schemas · repository · service · unit_of_work · router
 migrations/              # Alembic (plantilla asincrónica) y versions/ (0001 a 0004)
-test/                    # un .http por caso C-01 a C-16 (salvo C-14) y solo_agregado.sql
-evidencia/               # C-14_solo_agregado.txt, C-14_captura_psql.png y C-15_consultas_detalle_venta.txt
+test/                    # un .http por caso C-01 a C-16 (salvo C-14), los extra RN-03_rol_ya_vigente.http y
+                         # RN-15_caracter_nulo.http, y solo_agregado.sql
+evidencia/               # migraciones_ida_y_vuelta.txt; C-01_corrida.txt a C-13_corrida.txt, C-16_corrida.txt y
+                         # RN-15_corrida.txt; C-14_solo_agregado.txt y C-14_captura_psql.png;
+                         # C-15_consultas_detalle_venta.txt
 ```
 
 Capas: el router arma la unidad de trabajo, el servicio aplica las reglas, el repositorio accede a
@@ -180,26 +183,33 @@ comprobaciones adicionales a los casos del enunciado.
 
 | Caso | Archivo | Condición | Qué demuestra | Evidencia |
 |---|---|---|---|---|
-| C-01 | `C-01_parametro_no_entero.http` | | Parámetro de ruta no entero → 422 | |
-| C-02 | `C-02_registro_correo_repetido.http` | psql (final) | Registro 201; correo repetido de usuario o de cliente → 409 sin filas sueltas | |
-| C-03 | `C-03_cookie_login.http` | | Cookie HttpOnly, SameSite=Lax y Max-Age; sin token en el cuerpo; sin cookie o sólo Bearer → 401 | |
-| C-04 | `C-04_credenciales_indistinguibles.http` | | Correo existente con contraseña mala y correo inexistente → mismo 401 | |
-| C-05 | `C-05_limite_intentos.http` | psql (final) | Sexto intento fallido → 429 con `Retry-After`; cinco filas en `intento_acceso` | |
-| C-06 | `C-06_401_403_lo_propio.http` | | 401 sin sesión, 403 sin rol; la cliente ve su venta (200) y la ajena (403) | |
-| C-07 | `C-07_revocar_rol_sesion_abierta.http` | psql (final) | Rol revocado con sesión abierta → la misma cookie recibe 403; vencimiento pasado o sin zona → 422 | |
-| C-08 | `C-08_autoproteccion_admin.http` | | El ADMIN no puede revocarse su propio ADMIN → 409 | |
-| C-09 | `C-09_cambio_obligatorio.http` | | Cambio de contraseña obligatorio: 403 salvo `/auth`; luego la misma cookie entra | |
-| C-10 | `C-10_venta_valida.http` | psql (final) | Venta de dos renglones: 201, precios copiados, total, stock y movimientos; aviso del comprobante en la consola de uvicorn | |
-| C-11 | `C-11_venta_sin_stock.http` | psql (final) | Sin stock suficiente → 409 y nada cambia | |
-| C-12 | `C-12_venta_inexistentes_o_baja.http` | psql (final) | Cliente o libro inexistente o dado de baja → 409 | |
-| C-13 | `C-13_reponer_baja_reuso_isbn.http` | | Reponer, baja lógica, reuso del ISBN y título intacto en la venta vieja | |
+| C-01 | `C-01_parametro_no_entero.http` | | Parámetro de ruta no entero → 422 | `evidencia/C-01_corrida.txt` |
+| C-02 | `C-02_registro_correo_repetido.http` | psql (final) | Registro 201; correo repetido de usuario o de cliente → 409 sin filas sueltas | `evidencia/C-02_corrida.txt` |
+| C-03 | `C-03_cookie_login.http` | | Cookie HttpOnly, SameSite=Lax y Max-Age; sin token en el cuerpo; sin cookie o sólo Bearer → 401 | `evidencia/C-03_corrida.txt` |
+| C-04 | `C-04_credenciales_indistinguibles.http` | | Correo existente con contraseña mala y correo inexistente → mismo 401 | `evidencia/C-04_corrida.txt` |
+| C-05 | `C-05_limite_intentos.http` | psql (final) | Sexto intento fallido → 429 con `Retry-After`; cinco filas en `intento_acceso` | `evidencia/C-05_corrida.txt` |
+| C-06 | `C-06_401_403_lo_propio.http` | | 401 sin sesión, 403 sin rol; la cliente ve su venta (200) y la ajena (403) | `evidencia/C-06_corrida.txt` |
+| C-07 | `C-07_revocar_rol_sesion_abierta.http` | psql (final) | Rol revocado con sesión abierta → la misma cookie recibe 403; vencimiento pasado o sin zona → 422 | `evidencia/C-07_corrida.txt` |
+| C-08 | `C-08_autoproteccion_admin.http` | | El ADMIN no puede revocarse su propio ADMIN → 409 | `evidencia/C-08_corrida.txt` |
+| C-09 | `C-09_cambio_obligatorio.http` | | Cambio de contraseña obligatorio: 403 salvo `/auth`; luego la misma cookie entra | `evidencia/C-09_corrida.txt` |
+| C-10 | `C-10_venta_valida.http` | psql (final) | Venta de dos renglones: 201, precios copiados, total, stock y movimientos; aviso del comprobante en la consola de uvicorn | `evidencia/C-10_corrida.txt` |
+| C-11 | `C-11_venta_sin_stock.http` | psql (final) | Sin stock suficiente → 409 y nada cambia | `evidencia/C-11_corrida.txt` |
+| C-12 | `C-12_venta_inexistentes_o_baja.http` | psql (final) | Cliente o libro inexistente o dado de baja → 409 | `evidencia/C-12_corrida.txt` |
+| C-13 | `C-13_reponer_baja_reuso_isbn.http` | | Reponer, baja lógica, reuso del ISBN y título intacto en la venta vieja | `evidencia/C-13_corrida.txt` |
 | C-14 | `solo_agregado.sql` | `psql -f` | `movimiento_stock` rechaza UPDATE y DELETE | `evidencia/C-14_solo_agregado.txt` y `evidencia/C-14_captura_psql.png` |
 | C-15 | `C-15_detalle_consultas_fijas.http` | `SQL_ECHO=true` | El detalle de una venta emite la misma cantidad de consultas con 2 y con 4 renglones | `evidencia/C-15_consultas_detalle_venta.txt` |
-| C-16 | `C-16_busqueda_paginacion_patch.http` | | Búsqueda segura, paginación y PATCH parcial | |
+| C-16 | `C-16_busqueda_paginacion_patch.http` | | Búsqueda segura, paginación y PATCH parcial | `evidencia/C-16_corrida.txt` |
+| RN-03 (extra) | `RN-03_rol_ya_vigente.http` | | Asignar un rol que el usuario ya tiene vigente → 409 «El usuario ya tiene ese rol vigente» | |
+| RN-15 (extra) | `RN-15_caracter_nulo.http` | | El carácter U+0000 en cuerpos y en `?titulo=` → 422, nunca 500 | `evidencia/RN-15_corrida.txt` |
 
 C-14 se corre con `psql -U <usuario> -d <base> -v ON_ERROR_STOP=0 -f test/solo_agregado.sql` (con
 Docker: `docker exec -i <contenedor> psql -U <usuario> -d <base> < test/solo_agregado.sql`). Es
 autocontenido y termina con `ROLLBACK`.
+
+La carpeta `evidencia/` guarda la salida real de las comprobaciones, hecha contra una base
+PostgreSQL 16 descartable recién migrada y sembrada: `migraciones_ida_y_vuelta.txt` (`alembic
+upgrade head` → `downgrade base` → `upgrade head`) y un `*_corrida.txt` por cada archivo `.http`
+indicado en la tabla, con la respuesta esperada y la respuesta real de cada petición.
 
 ## Decisiones de diseño
 

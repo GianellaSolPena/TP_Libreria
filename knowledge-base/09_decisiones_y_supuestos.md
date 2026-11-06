@@ -33,6 +33,12 @@ La sesión propia del intento se crea desde la fábrica de `app.state` dentro de
 ### DD-10 — Vaciar tablas con `TRUNCATE`
 El disparador de sólo agregado rechaza DELETE (RN-12); `seed.py` y la limpieza de tests usan `TRUNCATE ... RESTART IDENTITY CASCADE`, que no dispara los triggers de fila. No se debilita el disparador.
 
+### DD-11 — `dependencies.py` en `app/core/` importando de `usuarios`
+**Decisión**: `parcial/app/core/dependencies.py` se queda en `app/core/` aunque importe `Rol`, `Usuario` y los repositorios de `app.modules.usuarios`. **Origen**: PDF, «Estructura obligatoria del proyecto» (p. 8), fila literal `app/core/dependencies.py`: «Usuario actual, roles vigentes, control del cambio obligatorio y `requiere_rol`». Moverlo a `app/modules/usuarios/` contradiría la ruta del PDF (regla 12: el PDF manda).
+**Por qué la dependencia `core → modules.usuarios` es inevitable**: los roles vigentes se leen de `asignacion_rol` en cada petición (RN-04, regla dura 8) y el PDF ubica `AsignacionRol` en `usuarios`; cualquier implementación de lo que el PDF pide en esa fila necesita el modelo y el repositorio de ese módulo.
+**Por qué las capas siguen respetadas**: `get_usuario_actual` es una dependencia de FastAPI (nivel router): recibe la sesión de `get_session`, arma el UoW y los repositorios, y ningún servicio recibe `AsyncSession` (regla dura 1). Cumple el mismo papel que un router.
+**Nota**: `ventas/service.py` importa de `core/dependencies.py` sólo el tipo `SesionActual` (datos, sin sesión ni HTTP) para la comprobación de dueño (RN-14). **Confirmado por el usuario** el 2026-11-06.
+
 ## Supuestos inferidos
 
 ### SU-01 — Entorno de pruebas local

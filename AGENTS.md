@@ -87,7 +87,7 @@ El plan completo está en [CHANGES.md](CHANGES.md). Resumen:
 - **Rama de despliegue** (solo `despliegue/`, paralela tras C-01): `C-10 despliegue-imagen → C-11 despliegue-vps` (ambos hechos; TP en línea en `http://187.127.58.90:8101`).
 - **Cierre**: `C-12 empaquetado-zip` (tras C-09 y C-11).
 - **Correcciones post-auditoría** (2026-11-06, `informe-cumplimiento/` local): `F-01 entradas-invalidas-nul → F-02 evidencia-casos-reproducible`, `F-03 pulido-estructura-y-docs` en paralelo, `F-04 re-empaquetado-zip` (bloqueado hasta pedido explícito de rearmar el zip).
-- **Próximo change**: `F-02 evidencia-casos-reproducible` (C-01..C-12 y F-01 hechos; el zip entregado no se toca hasta F-04).
+- **Próximo change**: `F-04 re-empaquetado-zip` (C-01..C-12 y F-01..F-03 hechos; bloqueado hasta pedido explícito de rearmar el zip; el zip entregado no se toca hasta entonces).
 
 **Antes de cualquier `/opsx:propose`**: leé [CHANGES.md](CHANGES.md), identificá las dependencias del change y sus archivos de "Leer antes".
 

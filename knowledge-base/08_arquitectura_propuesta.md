@@ -29,14 +29,14 @@
 
 ## Estructura de directorios obligatoria (proyecto `parcial/`)
 ```
-main.py                      aplicación, lifespan y los DOS grupos de rutas (el PDF lo lista sin prefijo app/, junto a seed.py: raíz del proyecto; hoy vive en app/main.py: ver Q-03)
+main.py                      aplicación, lifespan y los DOS grupos de rutas (el PDF lo lista sin prefijo app/, junto a seed.py: raíz del proyecto; hoy vive en `parcial/main.py`, DD-08)
 seed.py                      deja la base en el estado inicial conocido
 app/
 ├── core/
 │   ├── config.py            Settings (pydantic-settings)
 │   ├── database.py          crear motor y fábrica de sesiones (las llama el lifespan) + get_session
 │   ├── security.py          hash bcrypt fuera del bucle (+semáforo); emisión/verificación del token
-│   ├── dependencies.py      usuario actual, roles vigentes, control de cambio obligatorio, requiere_rol
+│   ├── dependencies.py      usuario actual, roles vigentes, control de cambio obligatorio, requiere_rol (se queda en core por el PDF aunque importe de usuarios: DD-11)
 │   ├── repository.py        BaseRepository[T], SoftDeleteRepository[T]
 │   ├── paginacion.py        envoltorio de listados y cálculo de páginas
 │   └── unit_of_work.py      UnitOfWork base
