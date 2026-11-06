@@ -86,7 +86,7 @@ El plan completo está en [CHANGES.md](CHANGES.md). Resumen:
 - **Orden del parcial**: `C-01..C-04 (hechos) → C-05 autenticacion → C-06 autorizacion-roles-eventos → C-07 libros-clientes-ventas → C-08 lecturas-sin-n1 → C-09 seed-casos-readme`.
 - **Rama de despliegue** (solo `despliegue/`, paralela tras C-01): `C-10 despliegue-imagen → C-11 despliegue-vps` (ambos hechos; TP en línea en `http://187.127.58.90:8101`).
 - **Cierre**: `C-12 empaquetado-zip` (tras C-09 y C-11).
-- **Próximo change**: `C-12 empaquetado-zip` (C-09 y C-11 hechos).
+- **Próximo change**: ninguno: roadmap completo (C-12 hecho); sólo falta subir el zip al campus (un solo integrante, antes de la fecha límite).
 
 **Antes de cualquier `/opsx:propose`**: leé [CHANGES.md](CHANGES.md), identificá las dependencias del change y sus archivos de "Leer antes".
 

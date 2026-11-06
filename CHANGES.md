@@ -157,7 +157,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 - **Leer antes**: `12` §DEPLOY.md y §Casos D; `07` §Flujo 7; `10` (Q-02, Q-14)
 
 ### [C-12] `empaquetado-zip`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` hecho (2026-11-06). Cierre: `Parcial_Cap1a6_Las_chicas.zip` en `C:\Users\agusf\Desktop\Entrega_Parcial\` (fuera del repo, no versionado), 176 archivos, SHA-256 `6dc3c47fc831e0eef454dd879591972e66dafc00c45eb9935d3eb5c2fb11867f`, armado desde el commit `44b17e9`, aprobado por el usuario. Recordatorio: si después de ese commit cambia algo en `parcial/` o `despliegue/`, rearmar el zip y reverificarlo
 - **Scope**: `Parcial_Cap1a6_Las_chicas.zip` (Q-01: grupo "Las chicas") con `parcial/` y `despliegue/` según el árbol del PDF; sin `.venv`, `__pycache__`, `.env`; `.git` según Q-15; nada de la raíz, `knowledge-base/`, `openspec/`, `.claude/`. Verificar: búsqueda de secretos y `alembic upgrade head` + `python seed.py` desde el zip extraído
 - **Dependencias**: C-09, C-11 · **Governance**: ALTO (filtrar credenciales) · **Ej.**: requisito de entrega
 - **Leer antes**: `12` §Contenido del .zip y §Reglas duras; `10` (Q-01, Q-13, Q-15)
@@ -179,8 +179,8 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 | C-09 | seed-casos-readme `[x]` | evidencia + entrega | BAJO | C-06, C-08 |
 | C-10 | despliegue-imagen `[x]` | Ej.9 (11) | ALTO | C-01 |
 | C-11 | despliegue-vps `[x]` | Ej.10 (7) | ALTO | C-10 (+ Q-02) |
-| C-12 | empaquetado-zip | entrega | ALTO | C-09, C-11 |
+| C-12 | empaquetado-zip `[x]` | entrega | ALTO | C-09, C-11 |
 
 Rutas de `knowledge-base/` abreviadas por número (`05` = `knowledge-base/05_reglas_de_negocio.md`).
 
-**Próximo change**: `C-12` (`empaquetado-zip`; C-11 hecho, grupo "Las chicas" → `Parcial_Cap1a6_Las_chicas.zip`).
+**Próximo change**: ninguno: roadmap completo; sólo falta subir el zip al campus (un solo integrante, antes de la fecha límite).
