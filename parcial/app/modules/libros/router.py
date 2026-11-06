@@ -7,6 +7,7 @@ from app.core.database import get_session
 from app.core.dependencies import UsuarioActualDep, solo_admin
 from app.core.errores import IdPath, traducir_errores
 from app.core.paginacion import Pagina, PaginaDep
+from app.core.validacion import TextoSinNulo
 from app.modules.libros import service
 from app.modules.libros.schemas import (
     INT4_MAX,
@@ -47,7 +48,7 @@ async def crear_libro(
 async def listar_libros(
     pagina: PaginaDep,
     uow: UowDep,
-    titulo: str | None = Query(None),
+    titulo: Annotated[TextoSinNulo | None, Query()] = None,
     genero_id: int | None = Query(None, ge=1, le=INT4_MAX),
 ) -> Pagina[LibroRead]:
     with traducir_errores(CONFLICTO, CONFLICTO_FK):

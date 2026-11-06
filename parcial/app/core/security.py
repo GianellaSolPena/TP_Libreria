@@ -8,6 +8,7 @@ from fastapi import Response
 from pydantic import AfterValidator, StringConstraints
 
 from app.core.config import get_settings
+from app.core.validacion import rechazar_nulo
 
 COOKIE_SESION = "access_token"
 
@@ -26,6 +27,7 @@ def _max_72_bytes(valor: str) -> str:
 # bcrypt rechaza mas de 72 bytes: el contrato lo valida antes de llegar a la base.
 PasswordBcrypt = Annotated[
     str,
+    AfterValidator(rechazar_nulo),
     StringConstraints(min_length=1),
     AfterValidator(_max_72_bytes),
 ]

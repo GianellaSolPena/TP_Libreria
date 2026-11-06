@@ -1,8 +1,21 @@
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_validator,
+)
 
-Email = Annotated[str, StringConstraints(min_length=3, pattern=r"^[^@\s]+@[^@\s]+$")]
+from app.core.validacion import TextoSinNulo, rechazar_nulo
+
+Email = Annotated[
+    str,
+    AfterValidator(rechazar_nulo),
+    StringConstraints(min_length=3, pattern=r"^[^@\s]+@[^@\s]+$"),
+]
 
 
 class ClienteCreate(BaseModel):
@@ -10,14 +23,14 @@ class ClienteCreate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    nombre: str = Field(min_length=1)
+    nombre: TextoSinNulo = Field(min_length=1)
     email: Email
 
 
 class ClienteUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    nombre: str | None = Field(default=None, min_length=1)
+    nombre: TextoSinNulo | None = Field(default=None, min_length=1)
     email: Email | None = None
 
     @model_validator(mode="after")
@@ -31,8 +44,8 @@ class ClienteUpdate(BaseModel):
 class PerfilCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    telefono: str | None = None
-    direccion: str | None = None
+    telefono: TextoSinNulo | None = None
+    direccion: TextoSinNulo | None = None
 
 
 class PerfilRead(BaseModel):

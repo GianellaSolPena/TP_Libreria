@@ -1,0 +1,79 @@
+@host = http://localhost:8000
+
+@emailAdmin = admin@example.com
+@passwordAdmin = admin1234
+
+# ============================================================================
+# RN-15 (extra, no es un caso C del PDF) · U+0000 en un texto de entrada → 422, nunca 500
+# ============================================================================
+# PostgreSQL no admite el carácter nulo (U+0000) en text/varchar. El contrato lo rechaza con
+# 422 (forma estándar de FastAPI, con loc) antes de llegar a la base. En los cuerpos JSON el
+# U+0000 viaja como el escape \u0000; en la URL, como %00.
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head            (base migrada, una sola vez)
+#   2) python seed.py                  (datos iniciales; repetir antes de cada archivo de casos)
+#   3) uvicorn main:app                (servidor arriba en http://localhost:8000)
+# Usuarios del seed: ver README.md. Este archivo no necesita psql.
+
+### RN-15a · Búsqueda de libros con U+0000 en el título (ruta pública)
+# @no-cookie-jar
+# Esperado: 422 con {"detail": [{"type": "value_error", "loc": ["query", "titulo"], ...}]}
+# Antes del arreglo era 500.
+GET {{host}}/libros?titulo=a%00b
+
+### RN-15b · Login con U+0000 en el correo
+# @no-cookie-jar
+# Esperado: 422 (loc: ["body", "email"]). No cuenta como intento fallido. Antes era 500.
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "admin\u0000@example.com", "password": "{{passwordAdmin}}"}
+
+### RN-15c · Login con U+0000 en la contraseña
+# @no-cookie-jar
+# Esperado: 422 (loc: ["body", "password"])
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "password": "admin\u00001234"}
+
+### Login del ADMIN
+# @name loginAdmin
+# @no-cookie-jar
+# Esperado: 200 {"mensaje": "Sesión iniciada", "debe_cambiar_password": false, "expira_en_segundos": 1800}
+# y Set-Cookie: access_token=...
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "password": "{{passwordAdmin}}"}
+
+### RN-15d · Alta de género con U+0000 en el nombre (ADMIN)
+# @no-cookie-jar
+# Esperado: 422 (loc: ["body", "nombre"])
+POST {{host}}/generos
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"nombre": "Ens\u0000ayo"}
+
+### RN-15e · PATCH de libro con U+0000 en el título (ADMIN)
+# @no-cookie-jar
+# Esperado: 422 (loc: ["body", "titulo"])
+PATCH {{host}}/libros/1
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"titulo": "Ray\u0000uela"}
+
+### RN-15f · Registro con U+0000 en el nombre
+# @no-cookie-jar
+# Esperado: 422 (loc: ["body", "nombre"])
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{"email": "nul@example.com", "nombre": "A\u0000b", "password": "clave1234"}
+
+### RN-15g (control) · Búsqueda normal sigue funcionando
+# @no-cookie-jar
+# Esperado: 200 con "total": 1 (Ficciones)
+GET {{host}}/libros?titulo=ficc

@@ -8,8 +8,20 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 UNIQUE_VIOLATION = "23505"
 FOREIGN_KEY_VIOLATION = "23503"
 NUMERIC_VALUE_OUT_OF_RANGE = "22003"
+# Errores de dato de la base atribuibles a la entrada del cliente (lista explícita, no toda la clase 22).
+DATO_INVALIDO = frozenset(
+    {
+        "22021",  # character_not_in_repertoire (p. ej. 0x00 en UTF-8)
+        "22P05",  # untranslatable_character
+        "22P02",  # invalid_text_representation
+        "22001",  # string_data_right_truncation
+        "22007",  # invalid_datetime_format
+        "22008",  # datetime_field_overflow
+    }
+)
 MENSAJE_GENERICO = "Los datos violan una restricción"
 MENSAJE_DESBORDE = "El valor supera el máximo permitido"
+MENSAJE_DATO_INVALIDO = "Algún dato enviado no es válido"
 
 # Ids de ruta: serial (>= 1) y dentro de int4 para no llegar a la base con un valor imposible.
 IdPath = Annotated[int, Path(ge=1, le=2_147_483_647)]
@@ -86,8 +98,12 @@ def traducir_errores(conflicto: str, conflicto_fk: str | None = None) -> Iterato
             detalle = MENSAJE_GENERICO
         raise HTTPException(status.HTTP_409_CONFLICT, detalle) from None
     except DBAPIError as exc:
-        # IntegrityError ya se atendió arriba; de los demás solo el desborde numérico es del
-        # cliente (409). Cualquier otro error de la base se propaga (500 sin texto de la base).
-        if getattr(exc.orig, "sqlstate", None) != NUMERIC_VALUE_OUT_OF_RANGE:
-            raise
-        raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_DESBORDE) from None
+        # IntegrityError ya se atendió arriba; de los demás, el desborde numérico (409) y los
+        # datos inválidos de la entrada (422) son del cliente. Cualquier otro error de la base
+        # se propaga (500 sin texto de la base).
+        sqlstate = getattr(exc.orig, "sqlstate", None)
+        if sqlstate == NUMERIC_VALUE_OUT_OF_RANGE:
+            raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_DESBORDE) from None
+        if sqlstate in DATO_INVALIDO:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_DATO_INVALIDO) from None
+        raise

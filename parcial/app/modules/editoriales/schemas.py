@@ -1,18 +1,20 @@
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.core.validacion import TextoSinNulo
+
 
 class EditorialCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    nombre: str = Field(min_length=1)
-    pais: str = Field(min_length=1)
+    nombre: TextoSinNulo = Field(min_length=1)
+    pais: TextoSinNulo = Field(min_length=1)
 
 
 class EditorialUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    nombre: str | None = Field(default=None, min_length=1)
-    pais: str | None = Field(default=None, min_length=1)
+    nombre: TextoSinNulo | None = Field(default=None, min_length=1)
+    pais: TextoSinNulo | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
     def _sin_nulos(self) -> "EditorialUpdate":

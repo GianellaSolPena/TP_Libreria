@@ -11,6 +11,7 @@ from pydantic import (
 )
 
 from app.core.security import PasswordBcrypt
+from app.core.validacion import TextoSinNulo, rechazar_nulo
 from app.modules.usuarios.models import Rol
 
 
@@ -22,6 +23,7 @@ def _normalizar_email(valor: str) -> str:
 # Ana@Example.com y ana@example.com no sean dos cuentas ni dos contadores.
 Email = Annotated[
     str,
+    AfterValidator(rechazar_nulo),
     StringConstraints(min_length=3, max_length=254, pattern=r"^[^@\s]+@[^@\s]+$"),
     AfterValidator(_normalizar_email),
 ]
@@ -31,7 +33,7 @@ class RegistroIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     email: Email
-    nombre: str = Field(min_length=1, max_length=120)
+    nombre: TextoSinNulo = Field(min_length=1, max_length=120)
     password: PasswordBcrypt
 
 
@@ -89,7 +91,7 @@ class PersonalIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     email: Email
-    nombre: str = Field(min_length=1, max_length=120)
+    nombre: TextoSinNulo = Field(min_length=1, max_length=120)
     password: PasswordBcrypt
     rol: RolPersonal
 

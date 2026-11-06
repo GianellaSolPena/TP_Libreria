@@ -4,6 +4,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.core.validacion import TextoSinNulo
+
 Rol = Literal["autor", "coautor", "traductor", "ilustrador"]
 
 INT4_MAX = 2**31 - 1
@@ -25,8 +27,8 @@ class LibroCreate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    isbn: str = Field(min_length=1)
-    titulo: str = Field(min_length=1)
+    isbn: TextoSinNulo = Field(min_length=1)
+    titulo: TextoSinNulo = Field(min_length=1)
     precio: Precio
     stock_inicial: int = Field(ge=0, le=INT4_MAX)
     editorial_id: IdInt4
@@ -46,7 +48,7 @@ class LibroUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    titulo: str | None = Field(default=None, min_length=1)
+    titulo: TextoSinNulo | None = Field(default=None, min_length=1)
     precio: Precio | None = None
 
     @model_validator(mode="after")
