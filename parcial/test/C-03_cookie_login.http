@@ -1,0 +1,61 @@
+@host = http://localhost:8000
+
+@emailAna = ana@example.com
+@passwordAna = ana12345
+
+# JWT para la prueba C-03d: copiá el VALOR de access_token que devuelve el login de C-03a
+# (la parte entre «access_token=» y el primer «;» del Set-Cookie) y pegalo acá.
+@jwtPegado = PEGAR_AQUI_EL_VALOR_DE_access_token
+
+# ============================================================================
+# C-03 · Sesión por cookie: HttpOnly, SameSite=Lax, Max-Age; sin token en el cuerpo (Ej. 2)
+# ============================================================================
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head
+#   2) python seed.py
+#   3) uvicorn main:app
+
+### C-03a · Login de Ana (CLIENTE)
+# @name loginAna
+# @no-cookie-jar
+# Esperado: 200
+#   Cuerpo: {"mensaje": "Sesión iniciada", "debe_cambiar_password": false, "expira_en_segundos": 1800}
+#           (SIN token ni password en el cuerpo)
+#   Encabezado: Set-Cookie: access_token=<JWT>; HttpOnly; Max-Age=1800; Path=/; SameSite=lax
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAna}}", "password": "{{passwordAna}}"}
+
+### C-03b · Con la cookie, /auth/yo funciona
+# @no-cookie-jar
+# Esperado: 200 {"usuario": {"email": "ana@example.com", ...}, "roles_vigentes": ["CLIENTE"],
+#                "roles_token": ["CLIENTE"]}
+GET {{host}}/auth/yo
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+### C-03c · Sin cookie
+# @no-cookie-jar
+# Esperado: 401
+GET {{host}}/auth/yo
+
+### C-03d · Sólo con «Authorization: Bearer» (sin cookie)
+# @no-cookie-jar
+# Esperado: 401. El servidor sólo acepta la cookie, aunque el JWT sea válido.
+# (Pegá antes el JWT real en @jwtPegado; con el valor de ejemplo también da 401.)
+GET {{host}}/auth/yo
+Authorization: Bearer {{jwtPegado}}
+
+### C-03e (extra) · Logout borra la cookie
+# @no-cookie-jar
+# Esperado: 200 {"mensaje": "Sesión cerrada"} y Set-Cookie: access_token=""; Max-Age=0 (expira la cookie)
+POST {{host}}/auth/logout
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+### C-03f (extra) · Login con un campo de más
+# @no-cookie-jar
+# Esperado: 422 (extra_forbidden en «rol»)
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAna}}", "password": "{{passwordAna}}", "rol": "ADMIN"}

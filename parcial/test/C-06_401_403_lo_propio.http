@@ -1,0 +1,87 @@
+@host = http://localhost:8000
+
+@emailVendedor = vendedor@example.com
+@passwordVendedor = vendedor1234
+@emailAna = ana@example.com
+@passwordAna = ana12345
+
+# ============================================================================
+# C-06 · 401 sin sesión, 403 sin rol, y el cliente sólo ve lo propio (Ej. 3)
+# ============================================================================
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head
+#   2) python seed.py
+#   3) uvicorn main:app
+# Ids del seed: cliente 3 = Ana Paz (usuario ana@example.com); venta 1 = de Lucía (cliente 1);
+# libro 4 = Respiración artificial. Este archivo no necesita psql.
+
+### C-06a · Crear un libro SIN sesión
+# @no-cookie-jar
+# Esperado: 401 {"detail": "No autenticado"}  (sin sesión = 401, no 403)
+POST {{host}}/libros
+Content-Type: application/json
+
+{"isbn": "978-950-00-0006-6", "titulo": "Libro de prueba", "precio": "1000.00", "stock_inicial": 1, "editorial_id": 1, "genero_id": 1, "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+### Login del VENDEDOR
+# @name loginVendedor
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailVendedor}}", "password": "{{passwordVendedor}}"}
+
+### C-06b · El VENDEDOR intenta crear un libro
+# @no-cookie-jar
+# Esperado: 403 (con sesión pero sin el rol ADMIN = 403, no 401)
+POST {{host}}/libros
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"isbn": "978-950-00-0006-6", "titulo": "Libro de prueba", "precio": "1000.00", "stock_inicial": 1, "editorial_id": 1, "genero_id": 1, "autores": [{"autor_id": 1, "rol": "autor", "orden": 1}]}
+
+### C-06c · El VENDEDOR registra una venta para Ana Paz (cliente 3)
+# @name ventaDeAna
+# @no-cookie-jar
+# Esperado: 201 {"id": 2, "cliente": {"id": 3, "nombre": "Ana Paz", ...}, "total": "27000.00",
+#                "renglones": [{"libro_id": 4, "titulo": "Respiración artificial", "cantidad": 1,
+#                               "precio_unitario": "27000.00", ...}]}
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": 3, "renglones": [{"libro_id": 4, "cantidad": 1}]}
+
+### Login de ANA (CLIENTE)
+# @name loginAna
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAna}}", "password": "{{passwordAna}}"}
+
+### C-06d · Ana ve SU venta
+# @no-cookie-jar
+# Esperado: 200 con la venta recién creada (cliente Ana Paz, total 27000.00)
+GET {{host}}/ventas/{{ventaDeAna.response.body.$.id}}
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+### C-06e · Ana intenta ver la venta 1 (de Lucía)
+# @no-cookie-jar
+# Esperado: 403 {"detail": "No podés ver una venta de otro cliente"}
+GET {{host}}/ventas/1
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+### C-06f (extra) · Ana lista sólo sus ventas
+# @no-cookie-jar
+# Esperado: 200 con total 1 (sólo la venta de Ana; antes de C-06c sería total 0)
+GET {{host}}/mis-ventas
+Cookie: {{loginAna.response.headers.Set-Cookie}}
+
+### C-06g (extra) · Ana no puede listar todas las ventas (ruta del personal)
+# @no-cookie-jar
+# Esperado: 403
+GET {{host}}/ventas
+Cookie: {{loginAna.response.headers.Set-Cookie}}

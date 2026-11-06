@@ -1,0 +1,81 @@
+@host = http://localhost:8000
+
+@emailAdmin = admin@example.com
+@passwordAdmin = admin1234
+
+# ============================================================================
+# C-16 · Búsqueda segura, paginación y PATCH parcial (Ej. 4, 5 y 8 del parcial)
+# ============================================================================
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head
+#   2) python seed.py
+#   3) uvicorn main:app
+# Datos del seed: 5 libros; sólo «Ficciones» contiene «ficc»; libro 1 = Rayuela
+# (25000.00, stock 10); editorial 3 = Emecé (Argentina). Este archivo no necesita psql.
+
+### Login del ADMIN
+# @name loginAdmin
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "password": "{{passwordAdmin}}"}
+
+### C-16a · Listado paginado del PDF (size=2)
+# @no-cookie-jar
+# Esperado: 200 con "total": 5, "page": 1, "size": 2, "pages": 3 y los libros 1 (Rayuela, 25000.00, stock 10)
+# y 2 (Antología de la literatura fantástica, 30000.00, stock 5)
+GET {{host}}/libros?size=2
+
+### C-16b · Intento de inyección en la búsqueda: ' OR '1'='1
+# @no-cookie-jar
+# Esperado: 200 con "items": [] y "total": 0 (el texto se trata como dato, no como SQL)
+GET {{host}}/libros?titulo=%27%20OR%20%271%27%3D%271
+
+### C-16c · Búsqueda por título parcial, sin distinguir mayúsculas
+# @no-cookie-jar
+# Esperado: 200 con "total": 1, "pages": 1 y un único item: «Ficciones» (id 3)
+GET {{host}}/libros?titulo=ficc&size=1
+
+### C-16d · Página que no existe
+# @no-cookie-jar
+# Esperado: 422 (la página 2 no existe: hay 1)
+GET {{host}}/libros?titulo=ficc&size=1&page=2
+
+### C-16e · size fuera del máximo (100)
+# @no-cookie-jar
+# Esperado: 422 (loc: ["query", "size"], less_than_equal)
+GET {{host}}/libros?size=500
+
+### C-16f · PATCH parcial: sólo el precio
+# @no-cookie-jar
+# Esperado: 200 con "precio": "26000.00"; el título («Rayuela») y el stock (10) NO cambian
+PATCH {{host}}/libros/1
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"precio": "26000.00"}
+
+### C-16g · PATCH con un campo que no se puede modificar (stock)
+# @no-cookie-jar
+# Esperado: 422 (extra_forbidden en «stock»): el stock sólo cambia por movimientos
+PATCH {{host}}/libros/1
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"stock": 99}
+
+### C-16h · PATCH parcial de una editorial: sólo el país
+# @no-cookie-jar
+# Esperado: 200 con "pais": "Uruguay"; el nombre («Emecé») NO cambia
+PATCH {{host}}/editoriales/3
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"pais": "Uruguay"}
+
+### C-16i (extra) · Tras los PATCH, el libro 1 conserva todo lo demás
+# @no-cookie-jar
+# Esperado: 200 con precio "26000.00", titulo «Rayuela», stock 10 (el 99 no se aplicó)
+GET {{host}}/libros/1

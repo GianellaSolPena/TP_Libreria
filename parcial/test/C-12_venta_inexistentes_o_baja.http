@@ -1,0 +1,99 @@
+@host = http://localhost:8000
+
+@emailVendedor = vendedor@example.com
+@passwordVendedor = vendedor1234
+@emailAdmin = admin@example.com
+@passwordAdmin = admin1234
+
+# ============================================================================
+# C-12 · Venta con cliente inexistente, libro inexistente o libro dado de baja → 409 (Ej. 5-7)
+# ============================================================================
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head
+#   2) python seed.py
+#   3) uvicorn main:app
+# Ids del seed: cliente 2 = Tomás Ríos; libro 1 = Rayuela; libro 5 = Bestiario (se da de baja aquí).
+# La consulta psql del final se hace con:
+#   docker exec -i libreria-pg psql -U libreria -d libreria -c "<consulta>"
+# (sin Docker: psql -U libreria -d libreria -c "<consulta>")
+
+### Login del VENDEDOR
+# @name loginVendedor
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailVendedor}}", "password": "{{passwordVendedor}}"}
+
+### Login del ADMIN
+# @name loginAdmin
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "password": "{{passwordAdmin}}"}
+
+### C-12a · Cliente inexistente (999)
+# @no-cookie-jar
+# Esperado: 409 {"detail": "El cliente indicado no existe"} (sin texto de la base ni 500)
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": 999, "renglones": [{"libro_id": 1, "cantidad": 1}]}
+
+### C-12b · Libro inexistente (999)
+# @no-cookie-jar
+# Esperado: 409 {"detail": "Los libros [999] no existen o están dados de baja"}
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": 2, "renglones": [{"libro_id": 999, "cantidad": 1}]}
+
+### C-12c · El ADMIN da de baja Bestiario (libro 5)
+# @no-cookie-jar
+# Esperado: 204 (sin cuerpo)
+DELETE {{host}}/libros/5
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-12d · Venta con el libro dado de baja
+# @no-cookie-jar
+# Esperado: 409 {"detail": "Los libros [5] no existen o están dados de baja"}
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": 2, "renglones": [{"libro_id": 5, "cantidad": 1}]}
+
+### C-12e · Mezcla: un libro válido y uno dado de baja (todo o nada)
+# @no-cookie-jar
+# Esperado: 409 (Rayuela tampoco se descuenta)
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": 2, "renglones": [{"libro_id": 1, "cantidad": 1}, {"libro_id": 5, "cantidad": 1}]}
+
+### C-12f · No se creó ninguna venta
+# @no-cookie-jar
+# Esperado: 200 con "total": 1 (sólo la venta 1 del seed)
+GET {{host}}/ventas
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### C-12g (extra) · Rayuela sigue en 10
+# @no-cookie-jar
+# Esperado: 200 con "stock": 10
+GET {{host}}/libros/1
+
+###
+# ----------------------------------------------------------------------------
+# Comprobación en la base (psql), después de C-12a..C-12e:
+#
+#    SELECT l.id, l.stock, COALESCE(SUM(m.cantidad), 0) AS suma, COUNT(m.id) AS movimientos
+#      FROM libro l LEFT JOIN movimiento_stock m ON m.libro_id = l.id
+#     GROUP BY l.id ORDER BY l.id;
+#    Esperado: stock = suma en los cinco libros (el libro 5 sigue en la tabla, con borrado_en)
+#    y 7 movimientos en total (ninguno nuevo): las ventas rechazadas no escriben nada.

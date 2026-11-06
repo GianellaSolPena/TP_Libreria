@@ -1,5 +1,57 @@
 @host = http://localhost:8000
 
-### C-01 · Parámetro de ruta que no es entero
-# Esperado: 422 (FastAPI rechaza antes de ejecutar el handler)
-GET {{host}}/editoriales/abc
+@emailVendedor = vendedor@example.com
+@passwordVendedor = vendedor1234
+@emailAdmin = admin@example.com
+@passwordAdmin = admin1234
+
+# ============================================================================
+# C-01 · Parámetro de ruta que no es un entero → 422 (Ej. 1 del parcial)
+# ============================================================================
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head            (base migrada, una sola vez)
+#   2) python seed.py                  (datos iniciales; repetir antes de cada archivo de casos)
+#   3) uvicorn main:app                (servidor arriba en http://localhost:8000)
+# Usuarios del seed: ver README.md. Este archivo no necesita psql.
+
+### Login del VENDEDOR
+# @name loginVendedor
+# @no-cookie-jar
+# Esperado: 200 {"mensaje": "Sesión iniciada", "debe_cambiar_password": false, "expira_en_segundos": 1800}
+# y Set-Cookie: access_token=...
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailVendedor}}", "password": "{{passwordVendedor}}"}
+
+### C-01a · Venta con id que no es entero (sesión iniciada)
+# @no-cookie-jar
+# Esperado: 422 con {"detail": [{"type": "int_parsing", "loc": ["path", "venta_id"], ...}]}
+# FastAPI lo rechaza antes de ejecutar el handler: no es 404 ni 500.
+GET {{host}}/ventas/abc
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### Login del ADMIN
+# @name loginAdmin
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "password": "{{passwordAdmin}}"}
+
+### C-01b · Id de usuario que no es entero (ADMIN)
+# @no-cookie-jar
+# Esperado: 422 (loc: ["path", "usuario_id"], type int_parsing)
+GET {{host}}/usuarios/abc/roles
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-01c (extra) · Id de libro que no es entero (ruta pública, sin sesión)
+# @no-cookie-jar
+# Esperado: 422 (loc: ["path", "libro_id"])
+GET {{host}}/libros/abc
+
+### C-01d (extra) · Id válido pero inexistente: 404, no 422
+# @no-cookie-jar
+# Esperado: 404 con un mensaje propio en "detail"
+GET {{host}}/libros/999

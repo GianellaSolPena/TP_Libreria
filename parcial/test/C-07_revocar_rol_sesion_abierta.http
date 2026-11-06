@@ -1,0 +1,107 @@
+@host = http://localhost:8000
+
+@emailAdmin = admin@example.com
+@passwordAdmin = admin1234
+@emailVendedor = vendedor@example.com
+@passwordVendedor = vendedor1234
+
+# ============================================================================
+# C-07 · Revocar un rol con la sesión abierta: la misma cookie recibe 403 (Ej. 3)
+# ============================================================================
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head
+#   2) python seed.py
+#   3) uvicorn main:app
+# Ids del seed: usuario 1 = admin, usuario 3 = vendedor. Dos sesiones a la vez: cada
+# petición lleva la cookie de SU login (# @no-cookie-jar + Cookie).
+# La fila revocada se ve también por psql (comentario final).
+
+### Login del ADMIN
+# @name loginAdmin
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "password": "{{passwordAdmin}}"}
+
+### Login del VENDEDOR (el token queda con roles_token = ["VENDEDOR"])
+# @name loginVendedor
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailVendedor}}", "password": "{{passwordVendedor}}"}
+
+### C-07a · El VENDEDOR lista ventas (todavía tiene el rol)
+# @no-cookie-jar
+# Esperado: 200 (total 1: la venta 1 del seed)
+GET {{host}}/ventas
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### C-07b · El ADMIN revoca el rol VENDEDOR del usuario 3
+# @no-cookie-jar
+# Esperado: 200 {"id": ..., "usuario_id": 3, "rol": "VENDEDOR", "revocada_en": "<fecha>",
+#                "vigente": false, ...}
+DELETE {{host}}/usuarios/3/roles/VENDEDOR
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-07c · El VENDEDOR repite la petición con la MISMA cookie
+# @no-cookie-jar
+# Esperado: 403. El token todavía dice VENDEDOR, pero se autoriza con los roles vigentes de la base.
+GET {{host}}/ventas
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### C-07d · /auth/yo muestra la diferencia entre token y base
+# @no-cookie-jar
+# Esperado: 200 {"usuario": {"email": "vendedor@example.com", ...},
+#                "roles_vigentes": [], "roles_token": ["VENDEDOR"]}
+GET {{host}}/auth/yo
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### C-07e · La fila revocada sigue en el historial de roles
+# @no-cookie-jar
+# Esperado: 200 con una asignación VENDEDOR con "revocada_en" no nulo y "vigente": false
+GET {{host}}/usuarios/3/roles
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-07f · Asignar un rol con vencimiento en el PASADO
+# @no-cookie-jar
+# Esperado: 422 (vence_en debe ser una fecha futura)
+POST {{host}}/usuarios/3/roles
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"rol": "VENDEDOR", "vence_en": "2020-01-01T00:00:00Z"}
+
+### C-07g · Asignar un rol con vencimiento SIN zona horaria
+# @no-cookie-jar
+# Esperado: 422 (la fecha debe incluir zona horaria)
+POST {{host}}/usuarios/3/roles
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"rol": "VENDEDOR", "vence_en": "2099-01-01T00:00:00"}
+
+### C-07h (extra) · Volver a dar el rol con vencimiento futuro: el VENDEDOR vuelve a entrar
+# @no-cookie-jar
+# Esperado: 201 {"rol": "VENDEDOR", "vence_en": "2099-01-01T00:00:00Z", "vigente": true, ...}
+POST {{host}}/usuarios/3/roles
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"rol": "VENDEDOR", "vence_en": "2099-01-01T00:00:00Z"}
+
+### C-07i (extra) · Con la MISMA cookie del vendedor, otra vez 200
+# @no-cookie-jar
+# Esperado: 200 (el rol volvió a estar vigente; no hizo falta un nuevo login)
+GET {{host}}/ventas
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+###
+# ----------------------------------------------------------------------------
+# Comprobación en la base (psql), después de C-07b (y antes de C-07h):
+#
+#    SELECT usuario_id, rol, desde, revocada_en FROM asignacion_rol WHERE usuario_id = 3 ORDER BY id;
+#    Esperado: 1 fila VENDEDOR con revocada_en no nulo (después de C-07h: 2 filas, la nueva abierta).

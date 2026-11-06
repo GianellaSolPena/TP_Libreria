@@ -1,0 +1,92 @@
+@host = http://localhost:8000
+
+@emailVendedor = vendedor@example.com
+@passwordVendedor = vendedor1234
+@emailAdmin = admin@example.com
+@passwordAdmin = admin1234
+
+# ============================================================================
+# C-10 · Venta válida de dos renglones: 201, precios copiados, total, stock y movimientos (Ej. 5-7)
+# ============================================================================
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head
+#   2) python seed.py
+#   3) uvicorn main:app         (mirá su consola: el aviso del comprobante sale DESPUÉS de la respuesta)
+# Ids del seed: cliente 2 = Tomás Ríos; libro 1 = Rayuela (25000.00, stock 10);
+# libro 4 = Respiración artificial (27000.00, stock 3). La consulta psql del final se hace con:
+#   docker exec -i libreria-pg psql -U libreria -d libreria -c "<consulta>"
+# (sin Docker: psql -U libreria -d libreria -c "<consulta>")
+
+### Login del VENDEDOR
+# @name loginVendedor
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailVendedor}}", "password": "{{passwordVendedor}}"}
+
+### Login del ADMIN
+# @name loginAdmin
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "password": "{{passwordAdmin}}"}
+
+### C-10a · Venta de dos renglones (cuerpo de ejemplo del PDF)
+# @name ventaValida
+# @no-cookie-jar
+# Esperado: 201
+# {"id": 2, "fecha": "<ahora>", "total": "77000.00",
+#  "cliente": {"id": 2, "nombre": "Tomás Ríos", ...},
+#  "renglones": [{"libro_id": 1, "titulo": "Rayuela", "cantidad": 2, "precio_unitario": "25000.00", "subtotal": "50000.00"},
+#                {"libro_id": 4, "titulo": "Respiración artificial", "cantidad": 1, "precio_unitario": "27000.00", "subtotal": "27000.00"}]}
+# El cuerpo no lleva precio, total ni fecha: los resuelve el servidor.
+# EN LA CONSOLA DE UVICORN: después de la línea «POST /ventas ... 201» aparece un aviso
+# «Comprobante de la venta 2 ...» (se emite cuando la respuesta ya salió).
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": 2, "renglones": [{"libro_id": 1, "cantidad": 2}, {"libro_id": 4, "cantidad": 1}]}
+
+### C-10b · Rayuela bajó de 10 a 8
+# @no-cookie-jar
+# Esperado: 200 con "stock": 8
+GET {{host}}/libros/1
+
+### C-10c · Respiración artificial bajó de 3 a 2
+# @no-cookie-jar
+# Esperado: 200 con "stock": 2
+GET {{host}}/libros/4
+
+### C-10d · Un movimiento por renglón: historial de Rayuela (ADMIN)
+# @no-cookie-jar
+# Esperado: 200 con total 3, en orden: «Stock inicial» +11 (usuario 1), «Venta» -1 (venta 1, usuario 3)
+# y «Venta» -2 (venta_id = id de la venta nueva, usuario 3).
+GET {{host}}/libros/1/movimientos
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-10e · Historial de Respiración artificial (ADMIN)
+# @no-cookie-jar
+# Esperado: 200 con total 2: «Stock inicial» +3 y «Venta» -1 (venta_id = la nueva)
+GET {{host}}/libros/4/movimientos
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-10f · La venta queda registrada (detalle, VENDEDOR)
+# @no-cookie-jar
+# Esperado: 200 con los mismos renglones y total 77000.00 que C-10a
+GET {{host}}/ventas/{{ventaValida.response.body.$.id}}
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+###
+# ----------------------------------------------------------------------------
+# Comprobación en la base (psql), después de C-10a:
+#
+#    SELECT l.id, l.stock, COALESCE(SUM(m.cantidad), 0) AS suma, COUNT(m.id) AS movimientos
+#      FROM libro l LEFT JOIN movimiento_stock m ON m.libro_id = l.id
+#     GROUP BY l.id ORDER BY l.id;
+#    Esperado: stock = suma en los cinco libros:
+#      1 → 8/8 (3 mov.), 2 → 5/5, 3 → 8/8, 4 → 2/2 (2 mov.), 5 → 1/1; y 9 movimientos en total.

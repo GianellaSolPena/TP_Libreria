@@ -1,0 +1,61 @@
+@host = http://localhost:8000
+
+@emailVendedor = vendedor@example.com
+@passwordVendedor = vendedor1234
+
+# ============================================================================
+# C-11 · Venta con un renglón sin stock suficiente: 409 y NADA cambia (Ej. 5-7)
+# ============================================================================
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head
+#   2) python seed.py
+#   3) uvicorn main:app
+# Ids del seed: cliente 2 = Tomás Ríos; libro 1 = Rayuela (stock 10); libro 5 = Bestiario (stock 1).
+# La consulta psql del final se hace con:
+#   docker exec -i libreria-pg psql -U libreria -d libreria -c "<consulta>"
+# (sin Docker: psql -U libreria -d libreria -c "<consulta>")
+
+### Login del VENDEDOR
+# @name loginVendedor
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailVendedor}}", "password": "{{passwordVendedor}}"}
+
+### C-11a · Rayuela x1 (alcanza) + Bestiario x2 (queda 1: NO alcanza)
+# @no-cookie-jar
+# Esperado: 409 {"detail": "No hay stock suficiente de «Bestiario»: hay 1, se pidieron 2"}
+# Todo o nada: ni siquiera Rayuela se descuenta.
+POST {{host}}/ventas
+Content-Type: application/json
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+{"cliente_id": 2, "renglones": [{"libro_id": 1, "cantidad": 1}, {"libro_id": 5, "cantidad": 2}]}
+
+### C-11b · No se creó ninguna venta nueva
+# @no-cookie-jar
+# Esperado: 200 con "total": 1 (sólo la venta 1 del seed)
+GET {{host}}/ventas
+Cookie: {{loginVendedor.response.headers.Set-Cookie}}
+
+### C-11c · Rayuela sigue en 10
+# @no-cookie-jar
+# Esperado: 200 con "stock": 10
+GET {{host}}/libros/1
+
+### C-11d · Bestiario sigue en 1
+# @no-cookie-jar
+# Esperado: 200 con "stock": 1
+GET {{host}}/libros/5
+
+###
+# ----------------------------------------------------------------------------
+# Comprobación en la base (psql), después de C-11a:
+#
+#    SELECT l.id, l.stock, COALESCE(SUM(m.cantidad), 0) AS suma, COUNT(m.id) AS movimientos
+#      FROM libro l LEFT JOIN movimiento_stock m ON m.libro_id = l.id
+#     GROUP BY l.id ORDER BY l.id;
+#    Esperado: stock = suma en los cinco libros (1 → 10/10, 2 → 5/5, 3 → 8/8, 4 → 3/3, 5 → 1/1)
+#    y 7 movimientos en total (ninguno nuevo).

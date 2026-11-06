@@ -1,0 +1,95 @@
+@host = http://localhost:8000
+
+@emailAdmin2 = admin2@example.com
+@passwordMala = contraseña-incorrecta
+
+# ============================================================================
+# C-05 · Límite de intentos fallidos de login: el sexto → 429 con Retry-After (Ej. 2)
+# ============================================================================
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head
+#   2) python seed.py          (deja intento_acceso vacía)
+#   3) uvicorn main:app
+# Corré las SEIS peticiones seguidas (dentro de la misma ventana de 60 s).
+# Efecto lateral: admin2@example.com queda bloqueado ~60 s desde el último fallo; el
+# siguiente `python seed.py` vacía intento_acceso y lo libera.
+# La consulta psql del final (cinco filas) se hace con Docker así:
+#   docker exec -i libreria-pg psql -U libreria -d libreria -c "<consulta>"
+# Sin Docker: psql -U libreria -d libreria -c "<consulta>"
+
+### C-05-1 · Fallo 1 de 5
+# @no-cookie-jar
+# Esperado: 401 {"detail": "Correo o contraseña incorrectos"}
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin2}}", "password": "{{passwordMala}}"}
+
+### C-05-2 · Fallo 2 de 5
+# @no-cookie-jar
+# Esperado: 401
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin2}}", "password": "{{passwordMala}}"}
+
+### C-05-3 · Fallo 3 de 5
+# @no-cookie-jar
+# Esperado: 401
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin2}}", "password": "{{passwordMala}}"}
+
+### C-05-4 · Fallo 4 de 5
+# @no-cookie-jar
+# Esperado: 401
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin2}}", "password": "{{passwordMala}}"}
+
+### C-05-5 · Fallo 5 de 5
+# @no-cookie-jar
+# Esperado: 401
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin2}}", "password": "{{passwordMala}}"}
+
+### C-05-6 · Sexto intento: BLOQUEADO
+# @no-cookie-jar
+# Esperado: 429 {"detail": "Demasiados intentos fallidos; probá de nuevo más tarde"}
+# con el encabezado Retry-After: <segundos que faltan, ≤ 60>.
+# Responde en pocos milisegundos: no gasta una verificación bcrypt.
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin2}}", "password": "{{passwordMala}}"}
+
+### C-05-7 (extra) · Durante el bloqueo, ni la contraseña CORRECTA entra
+# @no-cookie-jar
+# Esperado: 429 con Retry-After (el bloqueo es por correo+IP, no depende de la contraseña)
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin2}}", "password": "admin21234"}
+
+### C-05-8 (extra) · Otro correo no está bloqueado
+# @no-cookie-jar
+# Esperado: 200 (el límite es por correo + IP)
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "admin@example.com", "password": "admin1234"}
+
+###
+# ----------------------------------------------------------------------------
+# Comprobación en la base (psql), después de C-05-1..C-05-6:
+#
+#    SELECT email, ip, exito FROM intento_acceso WHERE email = 'admin2@example.com' ORDER BY id;
+#    Esperado: 5 filas (los cinco fallos, exito = f, misma ip). El sexto intento bloqueado
+#    y el 7.º (extra) no suman filas: el bloqueo responde antes de verificar.
+#
+# (extra) Vencimiento del bloqueo: esperá a que pase Retry-After (~60 s desde el quinto
+# fallo) y repetí el login con la contraseña correcta (admin21234) → 200.

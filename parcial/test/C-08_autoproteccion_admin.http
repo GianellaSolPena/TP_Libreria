@@ -1,0 +1,40 @@
+@host = http://localhost:8000
+
+@emailAdmin = admin@example.com
+@passwordAdmin = admin1234
+
+# ============================================================================
+# C-08 · El ADMIN no puede revocarse su propio rol ADMIN → 409 (Ej. 3)
+# ============================================================================
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head
+#   2) python seed.py
+#   3) uvicorn main:app
+# Ids del seed: usuario 1 = admin@example.com (ADMIN). Este archivo no necesita psql.
+
+### Login del ADMIN
+# @name loginAdmin
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "password": "{{passwordAdmin}}"}
+
+### C-08a · El ADMIN intenta revocarse su propio ADMIN
+# @no-cookie-jar
+# Esperado: 409 {"detail": "No podés revocarte tu propio rol ADMIN"}
+DELETE {{host}}/usuarios/1/roles/ADMIN
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-08b · Sigue siendo ADMIN
+# @no-cookie-jar
+# Esperado: 200 con "roles_vigentes": ["ADMIN"]
+GET {{host}}/auth/yo
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+### C-08c (extra) · Su asignación ADMIN sigue abierta
+# @no-cookie-jar
+# Esperado: 200 con la asignación ADMIN "vigente": true y "revocada_en": null
+GET {{host}}/usuarios/1/roles
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}

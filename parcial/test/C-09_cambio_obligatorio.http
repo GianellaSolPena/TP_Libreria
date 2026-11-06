@@ -1,0 +1,93 @@
+@host = http://localhost:8000
+
+@emailNuevo = nuevo@example.com
+@passwordProvisoria = nuevo1234
+@passwordNueva = nuevo56789
+@emailAdmin = admin@example.com
+@passwordAdmin = admin1234
+
+# ============================================================================
+# C-09 · Cambio de contraseña obligatorio: 403 salvo /auth; luego la misma cookie entra (Ej. 3)
+# ============================================================================
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head
+#   2) python seed.py          (nuevo@example.com nace con el cambio pendiente)
+#   3) uvicorn main:app
+# Ids del seed: usuario 5 = nuevo@example.com (VENDEDOR, debe_cambiar_password = true).
+# Este archivo no necesita psql.
+
+### C-09a · Login de nuevo@ con la contraseña provisoria
+# @name loginNuevo
+# @no-cookie-jar
+# Esperado: 200 {"mensaje": "Sesión iniciada", "debe_cambiar_password": true, ...}
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailNuevo}}", "password": "{{passwordProvisoria}}"}
+
+### C-09b · Ruta protegida con el cambio pendiente
+# @no-cookie-jar
+# Esperado: 403 (debe cambiar la contraseña antes de usar el sistema)
+GET {{host}}/ventas
+Cookie: {{loginNuevo.response.headers.Set-Cookie}}
+
+### C-09c · /auth/yo sí está permitido
+# @no-cookie-jar
+# Esperado: 200 con "debe_cambiar_password": true
+GET {{host}}/auth/yo
+Cookie: {{loginNuevo.response.headers.Set-Cookie}}
+
+### C-09d · Cambio de contraseña
+# @no-cookie-jar
+# Esperado: 200 {"mensaje": "Contraseña actualizada"}
+POST {{host}}/auth/cambiar-password
+Content-Type: application/json
+Cookie: {{loginNuevo.response.headers.Set-Cookie}}
+
+{"password_actual": "{{passwordProvisoria}}", "password_nueva": "{{passwordNueva}}"}
+
+### C-09e · La MISMA cookie ya entra a la ruta protegida
+# @no-cookie-jar
+# Esperado: 200 (lista de ventas, total 1). El estado se lee de la base: no hace falta nuevo login.
+GET {{host}}/ventas
+Cookie: {{loginNuevo.response.headers.Set-Cookie}}
+
+### C-09f · /auth/yo ya no marca el cambio pendiente
+# @no-cookie-jar
+# Esperado: 200 con "debe_cambiar_password": false
+GET {{host}}/auth/yo
+Cookie: {{loginNuevo.response.headers.Set-Cookie}}
+
+### C-09g (extra) · La contraseña provisoria dejó de valer
+# @no-cookie-jar
+# Esperado: 401
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailNuevo}}", "password": "{{passwordProvisoria}}"}
+
+### C-09h (extra) · Con la contraseña nueva se entra y el aviso es false
+# @no-cookie-jar
+# Esperado: 200 con "debe_cambiar_password": false
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailNuevo}}", "password": "{{passwordNueva}}"}
+
+### Login del ADMIN (para la alta de personal)
+# @name loginAdmin
+# @no-cookie-jar
+# Esperado: 200
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailAdmin}}", "password": "{{passwordAdmin}}"}
+
+### C-09i (extra) · Alta de personal con un correo ya usado
+# @no-cookie-jar
+# Esperado: 409 con un mensaje propio (sin texto de la base)
+POST {{host}}/usuarios
+Content-Type: application/json
+Cookie: {{loginAdmin.response.headers.Set-Cookie}}
+
+{"email": "{{emailNuevo}}", "nombre": "Repetido", "password": "provisoria123", "rol": "VENDEDOR"}

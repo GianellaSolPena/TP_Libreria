@@ -1,35 +1,26 @@
-C-15 · Consultas del detalle de una venta (SQL_ECHO=true, uvicorn). Corrida de C-15_detalle_consultas_fijas.http.
+C-15 · Consultas del detalle de una venta (SQL_ECHO=true, consola de uvicorn).
+Cómo se obtuvo (2026-11-06): python seed.py; SQL_ECHO=true uvicorn main:app; test/C-15_detalle_consultas_fijas.http
 Se cuentan las sentencias SELECT de cada petición (BEGIN/COMMIT se dejan como contexto; las líneas de parámetros se omiten).
-Mismo usuario (VENDEDOR) en las tres peticiones.
+Mismo usuario (VENDEDOR) en las dos peticiones. Datos: los del seed (venta 1, 2 renglones) y la venta creada por C-15a (4 renglones).
 
-=== D-01 · Detalle de la venta de 2 renglones · HTTP 200 · renglones: 2 · títulos: ['c08.Libro uno', 'c08.Libro dos'] · SELECT = 4
+=== C-15b · Detalle de la venta 1 (2 renglones) · GET /ventas/1 · HTTP 200 · renglones: 2 · SELECT = 4
     BEGIN (implicit)
-    SELECT usuario.id, usuario.email, usuario.nombre, usuario.password_hash, usuario.activo, usuario.debe_cambiar_password 
-    SELECT asignacion_rol.rol 
+    SELECT usuario.id, usuario.email, usuario.nombre, usuario.password_hash, usuario.activo, usuario.debe_cambiar_password
+    SELECT asignacion_rol.rol
     COMMIT
     BEGIN (implicit)
-    SELECT venta.id, venta.cliente_id, venta.fecha, venta.total, cliente_1.id AS id_1, cliente_1.nombre, cliente_1.email, cliente_1.usuario_id 
-    SELECT renglon_venta.venta_id, renglon_venta.id, renglon_venta.libro_id, renglon_venta.cantidad, renglon_venta.precio_unitario, libro_1.id, libro_1.isbn, libro_1.titulo, libro_1.precio, libro_1.stock, libro_1.borrado_en, libro_1.e  [...]
-    COMMIT
-
-=== D-02 · Detalle de la venta de 4 renglones (MISMO usuario que D-01) · HTTP 200 · renglones: 4 · títulos: ['c08.Libro uno', 'c08.Libro cuatro', 'c08.Libro dos', 'c08.Libro tres'] · SELECT = 4
-    BEGIN (implicit)
-    SELECT usuario.id, usuario.email, usuario.nombre, usuario.password_hash, usuario.activo, usuario.debe_cambiar_password 
-    SELECT asignacion_rol.rol 
-    COMMIT
-    BEGIN (implicit)
-    SELECT venta.id, venta.cliente_id, venta.fecha, venta.total, cliente_1.id AS id_1, cliente_1.nombre, cliente_1.email, cliente_1.usuario_id 
-    SELECT renglon_venta.venta_id, renglon_venta.id, renglon_venta.libro_id, renglon_venta.cantidad, renglon_venta.precio_unitario, libro_1.id, libro_1.isbn, libro_1.titulo, libro_1.precio, libro_1.stock, libro_1.borrado_en, libro_1.e  [...]
+    SELECT venta.id, venta.cliente_id, venta.fecha, venta.total, cliente_1.id AS id_1, cliente_1.nombre, cliente_1.email, cliente_1.usuario_id
+    SELECT renglon_venta.venta_id, renglon_venta.id, renglon_venta.libro_id, renglon_venta.cantidad, renglon_venta.precio_unitario, libro_1.id, libro_1.isbn, libro_1.titulo, libro_1.precio, libro_1.stoc [...]
     COMMIT
 
-=== D-04 · Detalle de la venta de 2 renglones tras la baja (MISMO usuario que D-01) · HTTP 200 · renglones: 2 · títulos: ['c08.Libro uno', 'c08.Libro dos'] · SELECT = 4
+=== C-15c · Detalle de la venta nueva (4 renglones) · GET /ventas/2 · HTTP 200 · renglones: 4 · SELECT = 4
     BEGIN (implicit)
-    SELECT usuario.id, usuario.email, usuario.nombre, usuario.password_hash, usuario.activo, usuario.debe_cambiar_password 
-    SELECT asignacion_rol.rol 
+    SELECT usuario.id, usuario.email, usuario.nombre, usuario.password_hash, usuario.activo, usuario.debe_cambiar_password
+    SELECT asignacion_rol.rol
     COMMIT
     BEGIN (implicit)
-    SELECT venta.id, venta.cliente_id, venta.fecha, venta.total, cliente_1.id AS id_1, cliente_1.nombre, cliente_1.email, cliente_1.usuario_id 
-    SELECT renglon_venta.venta_id, renglon_venta.id, renglon_venta.libro_id, renglon_venta.cantidad, renglon_venta.precio_unitario, libro_1.id, libro_1.isbn, libro_1.titulo, libro_1.precio, libro_1.stock, libro_1.borrado_en, libro_1.e  [...]
+    SELECT venta.id, venta.cliente_id, venta.fecha, venta.total, cliente_1.id AS id_1, cliente_1.nombre, cliente_1.email, cliente_1.usuario_id
+    SELECT renglon_venta.venta_id, renglon_venta.id, renglon_venta.libro_id, renglon_venta.cantidad, renglon_venta.precio_unitario, libro_1.id, libro_1.isbn, libro_1.titulo, libro_1.precio, libro_1.stoc [...]
     COMMIT
 
-Resumen: SELECT por petición = {'D-01': 4, 'D-02': 4, 'D-04': 4} -> IGUALES
+Conclusión: 4 SELECT con 2 renglones y 4 SELECT con 4 renglones: la cantidad de consultas no depende de los renglones (sin N+1).

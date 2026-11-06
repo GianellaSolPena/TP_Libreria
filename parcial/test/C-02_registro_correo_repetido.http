@@ -1,0 +1,85 @@
+@host = http://localhost:8000
+
+@emailNuevo = nueva@example.com
+@passwordNueva = nueva12345
+@emailUsuarioExistente = ana@example.com
+@emailClienteSinUsuario = tomas@example.com
+
+# ============================================================================
+# C-02 · Registro: alta 201, correo repetido 409 propio, sin filas sueltas (Ej. 2)
+# ============================================================================
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head
+#   2) python seed.py
+#   3) uvicorn main:app
+# Las comprobaciones de base (al final) usan psql. Con Docker:
+#   docker exec -i libreria-pg psql -U libreria -d libreria -c "<consulta>"
+# Sin Docker: psql -U libreria -d libreria -c "<consulta>"
+
+### C-02a · Registro exitoso (el correo no existe)
+# @no-cookie-jar
+# Esperado: 201
+# {"id": 6, "email": "nueva@example.com", "nombre": "Nueva Clienta", "activo": true,
+#  "debe_cambiar_password": false}      (sin password_hash). Se crea la cuenta, su rol CLIENTE
+# y su ficha de cliente (id 4) vinculada.
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{"email": "{{emailNuevo}}", "nombre": "Nueva Clienta", "password": "{{passwordNueva}}"}
+
+### C-02b · Correo de un USUARIO existente (ana@example.com)
+# @no-cookie-jar
+# Esperado: 409 {"detail": "Ya existe una cuenta o un cliente con ese correo"}
+# Mensaje propio: sin "uq_", "duplicate key" ni texto de la base; nunca un 500.
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{"email": "{{emailUsuarioExistente}}", "nombre": "Otra Ana", "password": "{{passwordNueva}}"}
+
+### C-02c · Correo de un CLIENTE existente sin cuenta (tomas@example.com)
+# @no-cookie-jar
+# Esperado: 409 con el mismo mensaje propio. El registro NO se apropia de la ficha
+# del cliente 2 (queda sin usuario).
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{"email": "{{emailClienteSinUsuario}}", "nombre": "Tomás Ríos", "password": "{{passwordNueva}}"}
+
+### C-02d (extra) · El correo se normaliza: mayúsculas del mismo correo → 409
+# @no-cookie-jar
+# Esperado: 409 (Ana@Example.com es la misma cuenta que ana@example.com)
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{"email": "Ana@Example.com", "nombre": "Otra Ana", "password": "{{passwordNueva}}"}
+
+### C-02e (extra) · No se puede elegir rol en el registro (campo extra)
+# @no-cookie-jar
+# Esperado: 422 (extra_forbidden en "rol"); nadie se registra como ADMIN
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{"email": "intruso@example.com", "nombre": "Intruso", "password": "{{passwordNueva}}", "rol": "ADMIN"}
+
+### C-02f (extra) · Contraseña de más de 72 bytes (límite de bcrypt)
+# @no-cookie-jar
+# Esperado: 422 (la contraseña no puede superar los 72 bytes); no 500
+POST {{host}}/auth/registro
+Content-Type: application/json
+
+{"email": "larga@example.com", "nombre": "Larga", "password": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+
+###
+# ----------------------------------------------------------------------------
+# Comprobaciones en la base (psql), después de correr C-02a..C-02f:
+#
+# 1) Sin filas sueltas: sólo existe la cuenta nueva (los correos repetidos no crearon nada).
+#    SELECT email FROM usuario WHERE email IN ('nueva@example.com','tomas@example.com','intruso@example.com','larga@example.com') ORDER BY email;
+#    Esperado: 1 fila → nueva@example.com
+#
+# 2) El cliente 2 sigue sin usuario:
+#    SELECT id, email, usuario_id FROM cliente WHERE email = 'tomas@example.com';
+#    Esperado: id 2, usuario_id NULL
+#
+# 3) Una ficha por cuenta (la nueva quedó vinculada, Ana sigue con la suya):
+#    SELECT count(*) FROM cliente;   Esperado: 4

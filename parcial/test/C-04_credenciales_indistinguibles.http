@@ -1,0 +1,32 @@
+@host = http://localhost:8000
+
+@emailVendedor = vendedor@example.com
+@emailInexistente = noexiste@example.com
+@passwordMala = contraseña-incorrecta
+
+# ============================================================================
+# C-04 · Credenciales inválidas indistinguibles (Ej. 2)
+# ============================================================================
+# Precondiciones (en este orden, desde parcial/):
+#   1) alembic upgrade head
+#   2) python seed.py
+#   3) uvicorn main:app
+# Cada correo recibe un solo fallo aquí, lejos del límite de C-05 (5 por correo+IP).
+
+### C-04a · Correo EXISTENTE con contraseña mala
+# @no-cookie-jar
+# Esperado: 401 {"detail": "Correo o contraseña incorrectos"}
+# Tiempo: parecido al de C-04b (REST Client lo muestra en la pestaña de la respuesta);
+# el servidor verifica un hash ficticio cuando el correo no existe.
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailVendedor}}", "password": "{{passwordMala}}"}
+
+### C-04b · Correo INEXISTENTE
+# @no-cookie-jar
+# Esperado: 401 con el MISMO cuerpo que C-04a (no revela si el correo existe)
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{"email": "{{emailInexistente}}", "password": "{{passwordMala}}"}
