@@ -187,12 +187,12 @@ F-04 re-empaquetado-zip (F-01..F-03; bloqueado hasta pedido explícito)
 - **Leer antes**: `05` (RN-15); `09`; consigna Ej. 3; `parcial/app/core/errores.py`; `schemas.py` de cada módulo
 
 ### [F-02] `evidencia-casos-reproducible`
-- **Estado**: `[x]` (pendiente del usuario: rehacer `C-14_captura_psql.png` sobre PostgreSQL 16)
+- **Estado**: `[x]` (la captura `C-14_captura_psql.png` se rehizo el 2026-11-06 sobre PostgreSQL 16 sembrada: 7 / 7, coincide con el txt)
 - **Scope** (sin código; sólo `parcial/evidencia/`):
   - En un contenedor descartable `postgres:16-alpine` (contraseña aleatoria fuera del repo; **nunca** la base local del usuario): `alembic upgrade head` → `downgrade base` → `upgrade head` sobre base vacía, salida guardada en `parcial/evidencia/`
   - Correr de verdad los casos que escriben datos (C-02, C-05, C-07, C-08, C-10..C-13, partes de C-16) contra un servidor de prueba y comparar con los comentarios de respuesta esperada
   - Captura cruda de consola para C-15 (reemplaza el resumen recortado a mano) y el aviso del comprobante de C-10 en la consola de uvicorn
-  - Paso opcional del usuario: rehacer la captura de psql de C-14 con la base sembrada (7 movimientos) para que coincidan el txt y el png
+  - Captura de psql de C-14 rehecha (2026-11-06) con la base sembrada (7 movimientos): coinciden el txt y el png
 - **Verificación**: archivos de evidencia nuevos coinciden con los comentarios de los `.http`; contenedor descartado al terminar
 - **Dependencias**: F-01 (correr después) · **Governance**: BAJO · **Ej.**: evidencia de 2-8
 - **Leer antes**: `12` §Casos C; `parcial/README.md`; `parcial/test/*.http`
