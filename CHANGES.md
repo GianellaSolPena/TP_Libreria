@@ -7,6 +7,7 @@
 ## Changelog
 - **2026-11-03 — Plan reducido a lo básico del PDF**: sin pytest ni TDD (DD-01 reemplazada); las pruebas son las del PDF (`.http` con respuesta esperada en comentario + `test/solo_agregado.sql`) y la evidencia C-14/C-15 y D. Changes agrupados por ejercicio. Mapeo: antes C-01 → C-01; C-02 (infra pytest) → eliminado; C-03 → C-02; C-06+C-07 → C-03; C-04+C-05 → C-04; C-08+C-09 → C-05; C-10+C-11 → C-06; C-12+C-13+C-14 → C-07; C-15 → C-08; C-16+C-17+C-18 → C-09; C-19+C-20 → C-10; C-21 → C-11; C-22 → C-12.
 - **2026-11-03 — Auditoría contra el PDF** (`13_auditoria_vs_pdf.md`): correcciones de endpoints, modelo, RN y estructura incorporadas al scope de cada change (los ids de la auditoría son los anteriores; ver mapeo arriba).
+- **2026-11-06 — Auditoría post-entrega** (`informe-cumplimiento/index.html`, local): se agregan las correcciones F-01..F-04 (ver sección "Correcciones post-auditoría").
 
 ## Premisas (no negociables)
 1. `parcial/` es la copia del TP entregado (`e337710`) y se evoluciona ahí; la raíz del repo solo tiene planificación (el TP original se quitó el 2026-11-03; sigue en `e337710`). Comandos del parcial (alembic, uvicorn, seed) se corren desde `parcial/`.
@@ -164,6 +165,59 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 
 ---
 
+## Correcciones post-auditoría (F-01..F-04)
+
+> **Auditoría 2026-11-06**: página local `informe-cumplimiento/index.html` (sin versionar, sólo en la máquina). 353 requisitos: **333 cumple / 5 parcial / 1 no cumple / 6 no verificable / 8 no aplica**. El arreglo de `/health/ready` y de los datos iniciales en `despliegue/` (IN-07/IN-06) está permitido explícitamente por el Ej. 9 ("corregir defectos propios del TP"): no requiere change. Los F-xx corrigen lo que quedó en no cumple / parcial / no verificable. **El zip entregable (`C:\Users\agusf\Desktop\Entrega_Parcial\`) no se toca hasta F-04**.
+
+```
+F-01 entradas-invalidas-nul
+└── F-02 evidencia-casos-reproducible
+F-03 pulido-estructura-y-docs (en paralelo)
+F-04 re-empaquetado-zip (F-01..F-03; bloqueado hasta pedido explícito)
+```
+
+### [F-01] `entradas-invalidas-nul`
+- **Estado**: `[x]`
+- **Scope** (sólo `parcial/`):
+  - RN-15 / Ej. 3: un U+0000 en cualquier texto de entrada (cuerpos: correo, nombres, títulos, ISBN, motivos, etc.; parámetros de consulta como la búsqueda por `titulo`) se rechaza en el contrato con 422, con la misma forma que las demás validaciones
+  - Red de seguridad en `parcial/app/core/errores.py` (hoy relanza `DBAPIError` → 500): los errores de datos de asyncpg se traducen a 422 con mensaje propio (nunca texto de la base); la traducción `IntegrityError` → 409 queda igual
+  - Caso `.http` nuevo en `parcial/test/` con la respuesta esperada en comentario
+- **Verificación**: `GET /libros?titulo=a%00b` → 422 y `POST /auth/login` con U+0000 en el correo → 422 (ninguno 500); casos `.http` existentes sin regresiones; `grep` de capas vacío
+- **Dependencias**: ninguna · **Governance**: MEDIO · **Ej.**: 3 (RN-15)
+- **Leer antes**: `05` (RN-15); `09`; consigna Ej. 3; `parcial/app/core/errores.py`; `schemas.py` de cada módulo
+
+### [F-02] `evidencia-casos-reproducible`
+- **Estado**: `[ ]`
+- **Scope** (sin código; sólo `parcial/evidencia/`):
+  - En un contenedor descartable `postgres:16-alpine` (contraseña aleatoria fuera del repo; **nunca** la base local del usuario): `alembic upgrade head` → `downgrade base` → `upgrade head` sobre base vacía, salida guardada en `parcial/evidencia/`
+  - Correr de verdad los casos que escriben datos (C-02, C-05, C-07, C-08, C-10..C-13, partes de C-16) contra un servidor de prueba y comparar con los comentarios de respuesta esperada
+  - Captura cruda de consola para C-15 (reemplaza el resumen recortado a mano) y el aviso del comprobante de C-10 en la consola de uvicorn
+  - Paso opcional del usuario: rehacer la captura de psql de C-14 con la base sembrada (7 movimientos) para que coincidan el txt y el png
+- **Verificación**: archivos de evidencia nuevos coinciden con los comentarios de los `.http`; contenedor descartado al terminar
+- **Dependencias**: F-01 (correr después) · **Governance**: BAJO · **Ej.**: evidencia de 2-8
+- **Leer antes**: `12` §Casos C; `parcial/README.md`; `parcial/test/*.http`
+
+### [F-03] `pulido-estructura-y-docs`
+- **Estado**: `[ ]`
+- **Scope**:
+  - Revisar `parcial/app/core/dependencies.py` (arma `UnitOfWork`/repos de usuarios e importa de `app.modules.usuarios`) contra la "Estructura obligatoria" de la consigna: moverlo al módulo `usuarios` si el PDF lo implica; si no, documentar la decisión (DD-xx)
+  - `despliegue/DEPLOY.md`: partir los comandos largos con `\`
+  - Borrar la carpeta suelta `app/` sin versionar de la raíz del repo tras confirmar que sólo tiene `__pycache__`
+  - `parcial/README.md` menciona los casos y la evidencia nuevos
+  - Opcionales (no los pide el PDF): `.http` para RN-03 409 y token vencido; escapar `%` y `_` en la búsqueda por título
+- **Verificación**: casos `.http` existentes sin regresiones; `grep` de capas vacío; README coherente con `parcial/test/` y `parcial/evidencia/`
+- **Dependencias**: ninguna (en paralelo) · **Governance**: BAJO · **Ej.**: estructura (p. 8-9), entrega
+- **Leer antes**: consigna §Estructura obligatoria; `08` §Estructura; `12` §README y §DEPLOY.md
+
+### [F-04] `re-empaquetado-zip`
+- **Estado**: `[ ]` **BLOQUEADO**: sólo cuando el usuario pida explícitamente rearmar el zip
+- **Scope**: igual que C-12: `git archive` desde el commit nuevo, verificación sobre el zip extraído (búsqueda de secretos, `alembic upgrade head` + `python seed.py`), el usuario aprueba la lista de entradas; después regenerar los estados de `informe-cumplimiento/`
+- **Verificación**: la de C-12 + SHA-256 nuevo anotado aquí
+- **Dependencias**: F-01, F-02, F-03 · **Governance**: ALTO (filtrar credenciales) · **Ej.**: requisito de entrega
+- **Leer antes**: C-12; `12` §Contenido del .zip; `10` (Q-01, Q-15)
+
+---
+
 ## Resumen
 
 | ID | Change | Ej. / pts | Governance | Depende de |
@@ -180,7 +234,11 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 | C-10 | despliegue-imagen `[x]` | Ej.9 (11) | ALTO | C-01 |
 | C-11 | despliegue-vps `[x]` | Ej.10 (7) | ALTO | C-10 (+ Q-02) |
 | C-12 | empaquetado-zip `[x]` | entrega | ALTO | C-09, C-11 |
+| F-01 | entradas-invalidas-nul `[x]` | Ej.3 (RN-15) | MEDIO | — |
+| F-02 | evidencia-casos-reproducible `[ ]` | evidencia | BAJO | F-01 |
+| F-03 | pulido-estructura-y-docs `[ ]` | estructura + docs | BAJO | — |
+| F-04 | re-empaquetado-zip `[ ]` (bloqueado) | entrega | ALTO | F-01, F-02, F-03 |
 
 Rutas de `knowledge-base/` abreviadas por número (`05` = `knowledge-base/05_reglas_de_negocio.md`).
 
-**Próximo change**: ninguno: roadmap completo; sólo falta subir el zip al campus (un solo integrante, antes de la fecha límite).
+**Próximo change**: `F-02 evidencia-casos-reproducible` (F-01 hecho; correcciones post-auditoría F-01..F-04; F-04 rearma el zip sólo con pedido explícito).
