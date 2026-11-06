@@ -1,6 +1,6 @@
 # Librería · Parcial Programación III (Capítulos 1-6)
 
-Integrantes: Agustina Fontagnol, Martina Suarez y Gianella Peña
+Integrantes: Agustina Fontagnol, Martina Suarez, Gianella Peña y Yoselie Aquino
 
 API REST con FastAPI, SQLModel y PostgreSQL (asyncpg). El repo tiene dos proyectos independientes,
 cada uno con su propio `app/`, `migrations/`, `alembic.ini`, `requirements.txt`, `env.example` y `test/`:

@@ -1,6 +1,6 @@
 # Librería · Parcial Programación III (Capítulos 1-6)
 
-Integrantes: Agustina Fontagnol, Martina Suarez y Gianella Peña
+Integrantes: Agustina Fontagnol, Martina Suarez, Gianella Peña y Yoselie Aquino
 
 API REST con FastAPI, SQLModel y PostgreSQL (asyncpg). Catálogo de libros, autores, editoriales y
 géneros, clientes y ventas, con autenticación por cookie (JWT), roles (ADMIN, VENDEDOR, CLIENTE),

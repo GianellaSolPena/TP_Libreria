@@ -1,6 +1,6 @@
 # Librería · TP Programación III (Unidades 1-4)
 
-Integrantes: Agustina Fontagnol, Martina Suarez y Gianella Peña
+Integrantes: Agustina Fontagnol, Martina Suarez, Gianella Peña y Yoselie Aquino
 
 API REST con FastAPI, SQLModel y PostgreSQL (asyncpg). Catálogo de libros, autores, editoriales y
 géneros, más clientes y ventas.

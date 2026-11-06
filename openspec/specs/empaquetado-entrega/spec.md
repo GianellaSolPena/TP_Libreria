@@ -33,7 +33,7 @@ El zip SHALL contener en su raíz únicamente las carpetas `parcial/` y `desplie
 
 #### Scenario: Integrantes en el README
 - **WHEN** se lee `parcial/README.md` del zip
-- **THEN** lista a Agustina Fontagnol, Martina Suarez y Gianella Peña
+- **THEN** lista a Agustina Fontagnol, Martina Suarez, Gianella Peña y Yoselie Aquino
 
 #### Scenario: Captura de C-14 y README coherentes
 - **WHEN** se inspecciona `parcial/` en el zip extraído
