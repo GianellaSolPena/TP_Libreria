@@ -1,0 +1,32 @@
+# D-06 contenido de la imagen (contenedores efimeros --rm en el VPS)
+Fecha UTC: 2026-11-06 ~15:09
+
+$ docker run --rm --entrypoint ls libreria -a /app
+.
+..
+DEPLOY.md
+README.md
+alembic.ini
+app
+env.example
+migrations
+requirements.txt
+test
+(sin .env, .venv, .git ni __pycache__)
+
+$ docker run --rm --entrypoint find libreria /app ( -name .env -o -name '.env.*' -o -name .venv -o -name .git -o -name __pycache__ ) | wc -l
+0
+
+$ docker run --rm --entrypoint env libreria   (solo nombres; valores omitidos)
+GPG_KEY=<valor>
+HOME=<valor>
+HOSTNAME=<valor>
+LANG=<valor>
+PATH=<valor>
+PYTHONDONTWRITEBYTECODE=<valor>
+PYTHONUNBUFFERED=<valor>
+PYTHON_SHA256=<valor>
+PYTHON_VERSION=<valor>
+
+$ docker run --rm --entrypoint env libreria | grep -i -c -E 'DATABASE_URL|PASSWORD'
+0

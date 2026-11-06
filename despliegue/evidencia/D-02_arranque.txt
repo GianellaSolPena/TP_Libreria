@@ -1,0 +1,37 @@
+D-02 arranque del contenedor en el VPS
+Fecha UTC:       Fri Nov  6 14:55:52 UTC 2026
+Fecha Argentina: Fri Nov  6 11:55:52 -03 2026 (America/Argentina/Mendoza)
+
+$ docker run -d --name libreria -p 8101:8000 --restart unless-stopped --network easypanel-grupo1-chicas --env-file /root/libreria/libreria.env libreria
+bde74b1e3a6d50ea4b6ec6be2d2864d018a4f4b657879340a759fd54d1c15358
+
+$ docker logs libreria   (tras ~45 s)
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, esquema inicial (todas las tablas menos genero)
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, agrega tabla genero y libro.genero_id
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:57594 - "GET /health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40888 - "GET /health/ready HTTP/1.1" 200 OK
+
+$ docker ps --filter name=libreria
+CONTAINER ID   IMAGE      COMMAND                  CREATED          STATUS                    PORTS                                         NAMES
+bde74b1e3a6d   libreria   "sh -c 'alembic upgr…"   47 seconds ago   Up 46 seconds (healthy)   0.0.0.0:8101->8000/tcp, [::]:8101->8000/tcp   libreria
+
+$ docker exec libreria wget -qO- http://127.0.0.1:8000/health/live
+{"estado":"vivo"}
+
+=== 3.4 Datos iniciales (2026-11-06) ===
+$ docker exec libreria sh -c 'psql -v ON_ERROR_STOP=1 "$(echo "$DATABASE_URL" | sed "s/+asyncpg//")" -f test/seed.sql'
+EXIT=0   (salida termina en COMMIT)
+
+$ curl -s http://127.0.0.1:8101/libros/   (en el servidor)
+5 libros: Rayuela (id1, 25000.00, stock 10), Ficciones (id2, 18000.00, stock 15),
+Antologia de la literatura fantastica (id3, 22000.00, stock 8),
+Respiracion artificial (id4, 27000.00, stock 6), Bestiario (id5, 16000.00, stock 12)
+
+$ docker exec <db> psql -U calculadora -d calculadora -Atc "select tablename from pg_tables where schemaname='public'"
+historial

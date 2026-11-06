@@ -54,9 +54,8 @@ La fuente de verdad del dominio vive en `knowledge-base/` (índice en [README.md
 | [13_auditoria_vs_pdf.md](knowledge-base/13_auditoria_vs_pdf.md) | Matriz de requisitos del PDF |
 
 > ⚠️ Preguntas de prioridad **Alta** abiertas en `10_preguntas_abiertas.md`:
-> - **Q-01**: nombre del grupo (el zip es `Parcial_Cap1a6_<NombreDelGrupo>.zip`).
-> - **Q-02**: datos del VPS (host, usuario, puerto, URL pública, base de la cátedra) — **bloquea C-11**.
 > - **Q-04**: nombres exactos de las variables de `Settings` (clave de firma, duración del token, costo bcrypt, cookie `Secure`, pool).
+> - Q-01 (grupo "Las chicas": zip `Parcial_Cap1a6_Las chicas.zip`) y Q-02 (VPS `187.127.58.90`, puerto 8101, URL `http://187.127.58.90:8101`, base `libreria` en el PostgreSQL del grupo; acceso por SSH con clave, sin secretos en el repo) ya están resueltas.
 > - Q-03 (ubicación de `main.py`) ya está resuelta: `parcial/main.py` en la raíz (DD-08).
 
 ---
@@ -85,9 +84,9 @@ El plan completo está en [CHANGES.md](CHANGES.md). Resumen:
 
 - **Total**: 12 changes (C-01..C-12), agrupados por ejercicio del PDF; sólo lo que piden las consignas.
 - **Orden del parcial**: `C-01..C-04 (hechos) → C-05 autenticacion → C-06 autorizacion-roles-eventos → C-07 libros-clientes-ventas → C-08 lecturas-sin-n1 → C-09 seed-casos-readme`.
-- **Rama de despliegue** (solo `despliegue/`, paralela tras C-01): `C-10 despliegue-imagen → C-11 despliegue-vps` (C-11 bloqueado por Q-02).
+- **Rama de despliegue** (solo `despliegue/`, paralela tras C-01): `C-10 despliegue-imagen → C-11 despliegue-vps` (ambos hechos; TP en línea en `http://187.127.58.90:8101`).
 - **Cierre**: `C-12 empaquetado-zip` (tras C-09 y C-11).
-- **Próximo change**: `C-10 despliegue-imagen` (rama de despliegue; `C-11` bloqueado por Q-02, `C-12` tras C-11).
+- **Próximo change**: `C-12 empaquetado-zip` (C-09 y C-11 hechos).
 
 **Antes de cualquier `/opsx:propose`**: leé [CHANGES.md](CHANGES.md), identificá las dependencias del change y sus archivos de "Leer antes".
 

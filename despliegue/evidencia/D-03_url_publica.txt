@@ -1,0 +1,29 @@
+# D-03 URL publica - ejecutado fuera del VPS (desde la PC del usuario)
+# Fecha: 2026-11-06 11:58:21 -0300
+
+$ curl -sS -i http://187.127.58.90:8101/health/ready
+HTTP/1.1 200 OK
+date: Fri, 06 Nov 2026 14:58:21 GMT
+server: uvicorn
+content-length: 15
+content-type: application/json
+
+{"estado":"ok"}
+
+$ curl -sS -i http://187.127.58.90:8101/libros/
+HTTP/1.1 200 OK
+date: Fri, 06 Nov 2026 14:58:21 GMT
+server: uvicorn
+content-length: 971
+content-type: application/json
+
+[{"id":1,"isbn":"978-950-00-0001-1","titulo":"Rayuela","precio":"25000.00","stock":10,"editorial":{"id":1,"nombre":"Sudamericana","pais":"Argentina"},"genero":{"id":1,"nombre":"Novela"}},{"id":2,"isbn":"978-950-00-0002-2","titulo":"Ficciones","precio":"18000.00","stock":15,"editorial":{"id":1,"nombre":"Sudamericana","pais":"Argentina"},"genero":{"id":2,"nombre":"Cuento"}},{"id":3,"isbn":"978-950-00-0003-3","titulo":"Antología de la literatura fantástica","precio":"22000.00","stock":8,"editorial":{"id":2,"nombre":"Alfaguara","pais":"España"},"genero":{"id":2,"nombre":"Cuento"}},{"id":4,"isbn":"978-950-00-0004-4","titulo":"Respiración artificial","precio":"27000.00","stock":6,"editorial":{"id":2,"nombre":"Alfaguara","pais":"España"},"genero":{"id":1,"nombre":"Novela"}},{"id":5,"isbn":"978-950-00-0005-5","titulo":"Bestiario","precio":"16000.00","stock":12,"editorial":{"id":1,"nombre":"Sudamericana","pais":"Argentina"},"genero":{"id":2,"nombre":"Cuento"}}]
+
+$ curl -sS -i -X POST http://187.127.58.90:8101/ventas/ -H 'Content-Type: application/json' -d '{"cliente_id": 2, "renglones": [{"libro_id": 1, "cantidad": 2}, {"libro_id": 4, "cantidad": 1}]}'
+HTTP/1.1 201 Created
+date: Fri, 06 Nov 2026 14:58:24 GMT
+server: uvicorn
+content-length: 362
+content-type: application/json
+
+{"id":2,"fecha":"2026-11-06T14:58:25.565387Z","total":"77000.00","cliente":{"id":2,"nombre":"Tomás Ríos","email":"tomas@example.com"},"renglones":[{"libro_id":1,"titulo":"Rayuela","cantidad":2,"precio_unitario":"25000.00","subtotal":"50000.00"},{"libro_id":4,"titulo":"Respiración artificial","cantidad":1,"precio_unitario":"27000.00","subtotal":"27000.00"}]}

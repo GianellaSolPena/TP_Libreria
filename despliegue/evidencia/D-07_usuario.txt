@@ -1,0 +1,5 @@
+# D-07 usuario no root del contenedor
+Fecha UTC: 2026-11-06 ~15:09
+
+$ docker exec libreria id
+uid=100(app) gid=101(app) groups=101(app)

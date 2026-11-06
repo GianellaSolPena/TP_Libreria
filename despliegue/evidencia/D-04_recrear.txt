@@ -1,0 +1,35 @@
+# D-04 recrear el contenedor (los datos viven en la base) - consultas ejecutadas fuera del VPS
+Fecha UTC:       Fri Nov  6 15:05:03 UTC 2026
+Fecha Argentina: Fri Nov  6 12:05:03 -03 2026 (America/Argentina/Mendoza)
+
+$ docker rm -f libreria
+$ docker run -d --name libreria -p 8101:8000 --restart unless-stopped --network easypanel-grupo1-chicas --env-file /root/libreria/libreria.env libreria
+
+$ docker ps --filter name=^libreria$   (a los ~14 s)
+libreria   Up 13 seconds (healthy)   0.0.0.0:8101->8000/tcp
+
+$ docker logs libreria   (sin 'Running upgrade': la base ya estaba migrada)
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+
+$ docker logs libreria | grep -c 'Running upgrade'
+0
+
+# Mismos datos antes y despues de recrear (sha256 de la respuesta)
+GET /libros/   antes: c70aa8fb5efea45f46abe0874b492b38b23459689759fd18a9ed523566eda82f
+GET /libros/   desp.: c70aa8fb5efea45f46abe0874b492b38b23459689759fd18a9ed523566eda82f
+GET /ventas/2  antes: f016cd35f0a643afa17f3d41d9a565218b29e2df383664084ec365dc4c73b09b
+GET /ventas/2  desp.: f016cd35f0a643afa17f3d41d9a565218b29e2df383664084ec365dc4c73b09b
+
+$ curl -sS -i http://187.127.58.90:8101/ventas/2
+HTTP/1.1 200 OK
+date: Fri, 06 Nov 2026 15:05:23 GMT
+server: uvicorn
+content-length: 362
+content-type: application/json
+
+{"id":2,"fecha":"2026-11-06T14:58:25.565387Z","total":"77000.00","cliente":{"id":2,"nombre":"Tomás Ríos","email":"tomas@example.com"},"renglones":[{"libro_id":1,"titulo":"Rayuela","cantidad":2,"precio_unitario":"25000.00","subtotal":"50000.00"},{"libro_id":4,"titulo":"Respiración artificial","cantidad":1,"precio_unitario":"27000.00","subtotal":"27000.00"}]}

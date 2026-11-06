@@ -1,0 +1,23 @@
+# D-08 aviso de comprobante - docker logs libreria | tail -n 30 (lectura, 2026-11-06 11:58:33 -0300)
+# IP del cliente externo enmascarada (x.x.x.x). Venta creada en D-03 = id 2.
+
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, esquema inicial (todas las tablas menos genero)
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, agrega tabla genero y libro.genero_id
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:57594 - "GET /health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40888 - "GET /health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53942 - "GET /health/live HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41766 - "GET /health/ready HTTP/1.1" 200 OK
+INFO:     172.16.1.1:38896 - "GET /libros/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38976 - "GET /health/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57866 - "GET /health/ready HTTP/1.1" 200 OK
+INFO:     x.x.x.x:63078 - "GET /health/ready HTTP/1.1" 200 OK
+INFO:     x.x.x.x:63079 - "GET /libros/ HTTP/1.1" 200 OK
+INFO:     x.x.x.x:63080 - "POST /ventas/ HTTP/1.1" 201 Created
+INFO:     app.modules.ventas.service - Comprobante de la venta 2 enviado
+INFO:     127.0.0.1:59666 - "GET /health/ready HTTP/1.1" 200 OK

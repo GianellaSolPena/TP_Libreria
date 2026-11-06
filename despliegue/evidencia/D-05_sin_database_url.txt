@@ -1,0 +1,21 @@
+# D-05 arranque sin DATABASE_URL - contenedor descartable en el VPS (sin --env-file, sin -p)
+Fecha UTC: 2026-11-06 ~15:07
+
+$ docker run --name libreria-sin-url libreria; echo "exit=$?"
+exit=1
+
+$ docker logs libreria-sin-url | tail -n 5
+    DATABASE_URL = get_database_url()
+                   ^^^^^^^^^^^^^^^^^^
+  File "/app/app/core/config.py", line 11, in get_database_url
+    raise RuntimeError(
+RuntimeError: Falta la variable de entorno DATABASE_URL. Copiá env.example como .env y completá el valor.
+
+$ docker inspect --format '{{.State.ExitCode}}' libreria-sin-url
+1
+
+$ docker rm libreria-sin-url
+libreria-sin-url
+
+$ docker ps --filter name=libreria   (el contenedor real sigue sano)
+libreria Up 28 seconds (healthy)

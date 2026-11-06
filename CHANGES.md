@@ -26,8 +26,8 @@ C-01 copias (hecho)
 │                                           └── C-07 libros-clientes-ventas (+C-03, C-04)
 │                                                └── C-08 lecturas-sin-n1
 │                                                     └── C-09 seed-casos-readme
-└── C-10 despliegue-imagen (sólo despliegue/, en paralelo)
-     └── C-11 despliegue-vps   BLOQUEADO por Q-02
+└── C-10 despliegue-imagen (sólo despliegue/, en paralelo) (hecho)
+     └── C-11 despliegue-vps (hecho)
 C-12 empaquetado-zip (C-09 + C-11)
 ```
 
@@ -141,7 +141,7 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 - **Notas de cierre**: C-09 dejó `parcial/seed.py`, 15 `.http` en `parcial/test/` (C-01..C-16 salvo C-14), evidencia C-14/C-15 en `parcial/evidencia/` y `parcial/README.md`; retirados los `.http` y `seed.sql` del TP.
 
 ### [C-10] `despliegue-imagen`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` hecho (2026-11-06)
 - **Scope** (sólo `despliegue/`):
   - Corregir sólo defectos propios del TP: IN-07 (`/health/ready` 503) e IN-06 (datos iniciales sin `psql` en Alpine); anotarlos para DEPLOY.md
   - `Dockerfile`: `FROM python:3.12-alpine`, `requirements.txt` antes del código con `--no-cache-dir`, usuario sin privilegios + `USER`, `sh -c "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"`, `HEALTHCHECK` con `wget http://127.0.0.1:8000/health/ready`; sin Compose
@@ -151,9 +151,9 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 - **Leer antes**: `12` §Dockerfile y §Casos D; `10` (IN-06, IN-07)
 
 ### [C-11] `despliegue-vps`
-- **Estado**: `[ ]` pendiente — BLOQUEADO por Q-02 (VPS, puerto, URL, base)
+- **Estado**: `[x]` hecho (2026-11-06). Notas de cierre: TP en línea en `http://187.127.58.90:8101` (contenedor `libreria`, imagen construida en el servidor, base `libreria` con rol propio en `grupo1-chicas_db` vía red `easypanel-grupo1-chicas`, env-file `/root/libreria/libreria.env` 600 fuera del repo); evidencia D-01..D-08 del VPS en `despliegue/evidencia/` (la local de C-10 en `evidencia/local/`); no hizo falta regla `ufw` (4.2 condicional no ejecutada); foto previa/posterior del servidor sin cambios ajenos. Riesgos anotados en `DEPLOY.md`: tras reiniciar el VPS puede hacer falta `docker start libreria`, servidor compartido de 1 CPU, PG17 en el servidor vs 16 local. Mantener el servicio arriba hasta que se publiquen las notas
 - **Scope**: `docker run -d --name libreria -p <puerto>:8000 --restart unless-stopped --env-file <archivo> libreria` (`--add-host` si corresponde; `SQL_ECHO=false`); datos iniciales vía `docker exec`; `despliegue/DEPLOY.md` (URL, fecha y hora, comandos completos, cambios al TP, cómo se actualiza, build en servidor o imagen llevada); `despliegue/evidencia/` con D-01..D-08 (Q-14)
-- **Dependencias**: C-10 + Q-02 · **Governance**: ALTO · **Ej.**: 10 (7)
+- **Dependencias**: C-10 (Q-02 resuelta) · **Governance**: ALTO · **Ej.**: 10 (7)
 - **Leer antes**: `12` §DEPLOY.md y §Casos D; `07` §Flujo 7; `10` (Q-02, Q-14)
 
 ### [C-12] `empaquetado-zip`
@@ -177,10 +177,10 @@ Uso: tomar el próximo `[ ]` con dependencias en `[x]`, leer sus "Leer antes", `
 | C-07 | libros-clientes-ventas `[x]` | Ej.6 (16), Ej.3, Ej.5, Ej.8 | ALTO | C-03, C-04, C-06 |
 | C-08 | lecturas-sin-n1 `[x]` | Ej.8 (6), Ej.3 (8) | MEDIO | C-07 |
 | C-09 | seed-casos-readme `[x]` | evidencia + entrega | BAJO | C-06, C-08 |
-| C-10 | despliegue-imagen | Ej.9 (11) | ALTO | C-01 |
-| C-11 | despliegue-vps | Ej.10 (7) | ALTO | C-10 (+ Q-02) |
+| C-10 | despliegue-imagen `[x]` | Ej.9 (11) | ALTO | C-01 |
+| C-11 | despliegue-vps `[x]` | Ej.10 (7) | ALTO | C-10 (+ Q-02) |
 | C-12 | empaquetado-zip | entrega | ALTO | C-09, C-11 |
 
 Rutas de `knowledge-base/` abreviadas por número (`05` = `knowledge-base/05_reglas_de_negocio.md`).
 
-**Próximo change**: `C-10` (`despliegue-imagen`).
+**Próximo change**: `C-12` (`empaquetado-zip`; C-11 hecho, grupo "Las chicas" → `Parcial_Cap1a6_Las chicas.zip`).

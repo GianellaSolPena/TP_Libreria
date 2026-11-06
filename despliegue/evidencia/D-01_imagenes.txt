@@ -1,0 +1,45 @@
+# D-01 - Imagenes en el VPS (srv1915306)
+# Fecha: Fri Nov  6 14:48:56 UTC 2026 (UTC) / Fri Nov  6 11:48:56 -03 2026
+
+$ docker pull python:3.12-alpine   (ejecutado despues del build, 2026-11-06)
+$ docker images python:3.12-alpine
+IMAGE                ID             DISK USAGE   CONTENT SIZE   EXTRA
+python:3.12-alpine   e064671ca452       74.8MB         18.7MB        
+
+$ docker images libreria
+IMAGE             ID             DISK USAGE   CONTENT SIZE   EXTRA
+libreria:latest   6a98ba627405        177MB         44.2MB        
+
+$ head -1 Dockerfile
+FROM python:3.12-alpine
+
+$ docker history libreria
+IMAGE          CREATED          CREATED BY                                      SIZE      COMMENT
+6a98ba627405   10 seconds ago   CMD ["sh" "-c" "alembic upgrade head && exec…   0B        buildkit.dockerfile.v0
+<missing>      10 seconds ago   HEALTHCHECK {Test:[CMD-SHELL wget -q -O /dev…   0B        buildkit.dockerfile.v0
+<missing>      10 seconds ago   EXPOSE [8000/tcp]                               0B        buildkit.dockerfile.v0
+<missing>      10 seconds ago   USER app                                        0B        buildkit.dockerfile.v0
+<missing>      10 seconds ago   COPY . . # buildkit                             643kB     buildkit.dockerfile.v0
+<missing>      10 seconds ago   RUN /bin/sh -c addgroup -S app && adduser -S…   41kB      buildkit.dockerfile.v0
+<missing>      11 seconds ago   RUN /bin/sh -c pip install --no-cache-dir -r…   68.4MB    buildkit.dockerfile.v0
+<missing>      24 seconds ago   COPY requirements.txt . # buildkit              12.3kB    buildkit.dockerfile.v0
+<missing>      24 seconds ago   RUN /bin/sh -c apk add --no-cache postgresql…   7.95MB    buildkit.dockerfile.v0
+<missing>      28 seconds ago   WORKDIR /app                                    8.19kB    buildkit.dockerfile.v0
+<missing>      28 seconds ago   ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFER…   0B        buildkit.dockerfile.v0
+<missing>      19 hours ago     CMD ["python3"]                                 0B        buildkit.dockerfile.v0
+<missing>      19 hours ago     RUN /bin/sh -c set -eux;  for src in idle3 p…   16.4kB    buildkit.dockerfile.v0
+<missing>      19 hours ago     RUN /bin/sh -c set -eux;   apk add --no-cach…   44.1MB    buildkit.dockerfile.v0
+<missing>      19 hours ago     ENV PYTHON_SHA256=b5796915dc45ff745cfb4e990a…   0B        buildkit.dockerfile.v0
+<missing>      19 hours ago     ENV PYTHON_VERSION=3.12.16                      0B        buildkit.dockerfile.v0
+<missing>      19 hours ago     ENV GPG_KEY=7169605F62C751356D054A26A821E680…   0B        buildkit.dockerfile.v0
+<missing>      19 hours ago     RUN /bin/sh -c set -eux;  apk add --no-cache…   2.81MB    buildkit.dockerfile.v0
+<missing>      19 hours ago     ENV LANG=C.UTF-8                                0B        buildkit.dockerfile.v0
+<missing>      19 hours ago     ENV PATH=/usr/local/bin:/usr/local/sbin:/usr…   0B        buildkit.dockerfile.v0
+<missing>      21 hours ago     CMD ["/bin/sh"]                                 0B        buildkit.dockerfile.v0
+<missing>      21 hours ago     ADD alpine-minirootfs-3.24.4-x86_64.tar.gz /…   9.09MB    buildkit.dockerfile.v0
+
+# Nota: el almacen de imagenes (containerd) no listaba la base tras el build; se hizo
+# `docker pull python:3.12-alpine` en el VPS y ahora figura con 74.8MB en disco (< 100 MB).
+# Coincide con la suma de capas base de docker history (~56 MB descomprimido segun capas).
+# Imagen final libreria: 177MB en disco (44.2MB de contenido comprimido).
+# Build: sin compilar (todas las dependencias bajaron como wheels musllinux; sin gcc/apk de compilador).
