@@ -139,7 +139,7 @@ app/
         # cada módulo: models · schemas · repository · service · unit_of_work · router
 migrations/              # Alembic (plantilla asincrónica) y versions/ (0001 a 0004)
 test/                    # un .http por caso C-01 a C-16 (salvo C-14) y solo_agregado.sql
-evidencia/               # C-14_solo_agregado.txt y C-15_consultas_detalle_venta.txt
+evidencia/               # C-14_solo_agregado.txt, C-14_captura_psql.png y C-15_consultas_detalle_venta.txt
 ```
 
 Capas: el router arma la unidad de trabajo, el servicio aplica las reglas, el repositorio accede a
@@ -193,7 +193,7 @@ comprobaciones adicionales a los casos del enunciado.
 | C-11 | `C-11_venta_sin_stock.http` | psql (final) | Sin stock suficiente → 409 y nada cambia | |
 | C-12 | `C-12_venta_inexistentes_o_baja.http` | psql (final) | Cliente o libro inexistente o dado de baja → 409 | |
 | C-13 | `C-13_reponer_baja_reuso_isbn.http` | | Reponer, baja lógica, reuso del ISBN y título intacto en la venta vieja | |
-| C-14 | `solo_agregado.sql` | `psql -f` | `movimiento_stock` rechaza UPDATE y DELETE | `evidencia/C-14_solo_agregado.txt` |
+| C-14 | `solo_agregado.sql` | `psql -f` | `movimiento_stock` rechaza UPDATE y DELETE | `evidencia/C-14_solo_agregado.txt` y `evidencia/C-14_captura_psql.png` |
 | C-15 | `C-15_detalle_consultas_fijas.http` | `SQL_ECHO=true` | El detalle de una venta emite la misma cantidad de consultas con 2 y con 4 renglones | `evidencia/C-15_consultas_detalle_venta.txt` |
 | C-16 | `C-16_busqueda_paginacion_patch.http` | | Búsqueda segura, paginación y PATCH parcial | |
 
